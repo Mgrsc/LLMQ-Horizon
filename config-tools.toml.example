@@ -39,5 +39,4 @@ cpu_time_limit = 5  # CPU时间限制
 wall_time_limit = 8  # 总时间限制
 
 [picture_api]
-api = "" # 在此填入请求接口,例如:"https://picture.netqianye.com/api.php?type="
-type = "" # 再次填入默认图片分类,例如:"动漫"
+api = "" # 在此填入请求接口,例如:"https://picture.netqianye.com/api.php?type=" type设定:触发工具AI将匹配用户输入,例如:"动漫图片"则type=动漫
