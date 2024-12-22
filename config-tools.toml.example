@@ -1,6 +1,6 @@
 [tools]
 builtin = ["tavily_search"]  # 启用内置的tavily搜索工具
-# 工具有analyze_image,code_runner, divination, draw, get_github_trending, get_time, get_weather_data, jina_fact_checking, jina_reader, jina_search, svg_card
+# 工具有analyze_image,code_runner, divination, draw, get_github_trending, get_time, get_weather_data, jina_fact_checking, jina_reader, jina_search, svg_card, picture_api
 enabled = ["get_time"]  # 启用外部工具列表
 
 [tavily]
@@ -41,3 +41,7 @@ wall_time_limit = 8  # 总时间限制
 [svg_card]
 claude_api_key = ""  # 在此填入Claude API密钥
 claude_base_url = ""  # Claude服务的基础URL
+
+[picture_api]
+api = "" # 在此填入请求接口,例如:"https://picture.netqianye.com/api.php?type="
+type = "" # 再次填入默认图片分类,例如:"动漫"
