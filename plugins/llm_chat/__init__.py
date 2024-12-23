@@ -308,7 +308,6 @@ async def handle_chat(
 
 
 
-
 group_chat_isolation = on_command(
     "chat group", 
     priority=5, 
