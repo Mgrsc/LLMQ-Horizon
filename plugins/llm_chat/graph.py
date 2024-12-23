@@ -6,6 +6,8 @@ from langgraph.prebuilt import ToolNode, tools_condition
 from langchain_core.messages import SystemMessage, trim_messages, HumanMessage, AIMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 from langchain_groq import ChatGroq
+from typing import Any, Optional, List, Dict
+from langchain_core.language_models import LanguageModelInput
 from langchain_google_genai import ChatGoogleGenerativeAI
 from .tools import load_tools
 from .config import Config
@@ -18,6 +20,27 @@ groq = {
     "llama-3.3-70b-versatile"
     }
 
+class MyOpenAI(ChatOpenAI):
+    @property
+    def _default_params(self) -> Dict[str, Any]:
+        """Get the default parameters for calling OpenAI API."""
+        params = super()._default_params
+        if "max_completion_tokens" in params:
+            params["max_tokens"] = params.pop("max_completion_tokens")
+        return params
+
+    def _get_request_payload(
+        self,
+        input_: LanguageModelInput,
+        *,
+        stop: Optional[List[str]] = None,
+        **kwargs: Any,
+    ) -> dict:
+        payload = super()._get_request_payload(input_, stop=stop, **kwargs)
+        if "max_completion_tokens" in payload:
+            payload["max_tokens"] = payload.pop("max_completion_tokens")
+        return payload
+
 def get_llm(model=None):
     """根据配置获取适当的 LLM 实例"""
     if model is None:
@@ -26,6 +49,7 @@ def get_llm(model=None):
         model = model.lower()
             
     print(f"graph使用模型: {model}")
+
     
     try:
         if groq.intersection({model}):
@@ -47,7 +71,7 @@ def get_llm(model=None):
             )
         else:
             print("使用 OpenAI")
-            return ChatOpenAI(
+            return MyOpenAI(
                 model=model,
                 temperature=plugin_config.llm.temperature,
                 max_tokens=plugin_config.llm.max_tokens,

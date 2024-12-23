@@ -65,19 +65,19 @@ def fal_draw(prompt: str, image_size: str = "square_hd", style: str = "any") -> 
         if url:
             save_image(url)
             if url.startswith("data:image"):
-                return "图片: " + url
-            return "图片: " + url 
+                return "画好了: " + url
+            return "画好了: " + url 
     return None
 
 from langchain_core.tools import tool
 
 @tool
 def draw(prompt: str, image_size: str = "square_hd", style: str = "any"):
-    """根据prompt要求进行绘画然后返回链接
+    """根据要求进行绘画然后返回图片链接
     Args:
-         prompt: 要画的内容
+         prompt: 要画的内容描述
          image_size: 图片尺寸，可选值为 "square_hd", "square", "portrait_4_3", "portrait_16_9", "landscape_4_3", "landscape_16_9"
-         style: 图片风格，可选值为 "any", "realistic_image", "digital_illustration", "vector_illustration"
+         style: 图片风格，可选值为 "any", "realistic_image", "digital_illustration", "realistic_image/b_and_w", "realistic_image/hard_flash", "realistic_image/hdr", "realistic_image/natural_light", "realistic_image/studio_portrait", "realistic_image/enterprise", "realistic_image/motion_blur", "digital_illustration/pixel_art", "digital_illustration/hand_drawn", "digital_illustration/grain", "digital_illustration/infantile_sketch", "digital_illustration/2d_art_poster", "digital_illustration/handmade_3d", "digital_illustration/hand_drawn_outline", "digital_illustration/engraving_color", "digital_illustration/2d_art_poster_2"
     """
     return fal_draw(prompt, image_size, style)
 

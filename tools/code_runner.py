@@ -302,7 +302,7 @@ def base64_code(source_code, stdin=None):
 def code_runner(source_code: str, language: str, stdin: str = None):
     """运行代码并返回详细的运行数据和结果。
     Args:
-        source_code: 保持原格式的源代码
+        source_code: 格式正确的源代码
         language: 编程语言.  可选：python3,python2,Assembly,Bash,C,C++,Clojure,C#,COBOL,Common Lisp,D,Elixir,F#,Fortran,Go,Groovy,Haskell,Java,JavaScript,Kotlin,Lua,OCaml,Octave,Pascal,Perl,PHP,Plain Text,Python,Python2,R,Ruby,Rust,Scala,SQL,Swift,TypeScript,Visual Basic.Net
         stdin: 需要运行程序的标准输入，可选，默认为 None
     """

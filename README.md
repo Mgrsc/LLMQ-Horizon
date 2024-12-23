@@ -42,6 +42,7 @@ groq_api_key = "xxxxxxxxxx"
 google_api_key = "xxxxxxxxxxx"
 api_key = "xxxxxxxx"
 base_url = "https://xxx.xxx.com/v1"
+temperature = 0.4 # 注意范围是0-1不要调太大
 system_prompt= """ """ #编写提示词，工具调用有问题请调节
 
 [plugin.llm_chat]

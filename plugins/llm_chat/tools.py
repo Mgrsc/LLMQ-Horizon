@@ -8,6 +8,7 @@ from pathlib import Path
 import tomli
 
 def get_builtin_tools(config: dict) -> Dict[str, BaseTool]:
+    """根据配置返回内置工具的初始化方法字典。"""
     return {
         "tavily_search": lambda: TavilySearchResults(
             max_results=config.get("tavily", {}).get("max_results", 2)
@@ -21,7 +22,7 @@ def load_tools(enabled_tools: Optional[List[str]] = None, tool_paths: Optional[L
         enabled_tools: 可选的已启用工具列表,如果为None则从配置文件加载
         tool_paths: 可选的工具路径列表
     """
-    all_tools = []
+    tools_list = []
 
     if enabled_tools is None:
         root_path = Path(__file__).resolve().parents[2]
@@ -33,17 +34,17 @@ def load_tools(enabled_tools: Optional[List[str]] = None, tool_paths: Optional[L
         except FileNotFoundError:
             raise FileNotFoundError(f"Tools config file not found at {config_path}")
 
-        builtin_tools_dict = get_builtin_tools(config)
+        builtin_tool_factories = get_builtin_tools(config)
         
         tavily_config = config.get("tavily")
         if tavily_config and "api_key" in tavily_config:
             os.environ["TAVILY_API_KEY"] = tavily_config["api_key"]
 
-        builtin_tools = config.get("tools", {}).get("builtin", [])
-        for name in builtin_tools:
-            tool = builtin_tools_dict.get(name)
-            if tool:
-                all_tools.append(tool())
+        builtin_tool_names = config.get("tools", {}).get("builtin", [])
+        for name in builtin_tool_names:
+            factory = builtin_tool_factories.get(name)
+            if factory:
+                tools_list.append(factory())
             else:
                 print(f"Warning: Built-in tool {name} not found")
 
@@ -59,10 +60,9 @@ def load_tools(enabled_tools: Optional[List[str]] = None, tool_paths: Optional[L
 
     for name in enabled_tools:
         try:
-            module = importlib.import_module(f"tools.{name.replace('-', '_')}")
-            all_tools.extend(module.tools if hasattr(module, 'tools') else [])
+            tool_module = importlib.import_module(f"tools.{name.replace('-', '_')}")
+            tools_list.extend(tool_module.tools if hasattr(tool_module, 'tools') else [])
         except (ModuleNotFoundError, ImportError) as e:
             print(f"Error loading tool {name}: {str(e)}")
 
-
-    return all_tools
+    return tools_list

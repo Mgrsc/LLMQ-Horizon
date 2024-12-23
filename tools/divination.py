@@ -1,4 +1,6 @@
 from langchain_core.prompts import ChatPromptTemplate
+from typing import Any, Optional, List, Dict
+from langchain_core.language_models import LanguageModelInput
 from langchain_openai import ChatOpenAI
 from langchain_core.tools import tool
 from .config import config
@@ -31,9 +33,28 @@ r"""         तारका तिमिरं दीपो मायावश�
           \  \ `-.   \_\_`. _.'_/_/  -' _.' /
 ===========`-.`___`-.__\ \___  /__.-'_.'_.-'================
                         `=--=-'                    """
+class MyOpenAI(ChatOpenAI):
+    @property
+    def _default_params(self) -> Dict[str, Any]:
+        """Get the default parameters for calling OpenAI API."""
+        params = super()._default_params
+        if "max_completion_tokens" in params:
+            params["max_tokens"] = params.pop("max_completion_tokens")
+        return params
 
+    def _get_request_payload(
+        self,
+        input_: LanguageModelInput,
+        *,
+        stop: Optional[List[str]] = None,
+        **kwargs: Any,
+    ) -> dict:
+        payload = super()._get_request_payload(input_, stop=stop, **kwargs)
+        if "max_completion_tokens" in payload:
+            payload["max_tokens"] = payload.pop("max_completion_tokens")
+        return payload
 
-llm = ChatOpenAI(
+llm = MyOpenAI(
     api_key = divination_config.get("api_key"),
     base_url = divination_config.get("base_url"),
     model = divination_config.get("model"),
