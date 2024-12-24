@@ -21,6 +21,7 @@ class PluginConfig(BaseModel):
     Trigger_mode: List[str] = ["keyword", "at"]
     group_chat_isolation: bool = True
     enable_private: bool = True
+    disabled_message: str = "Bot已禁用"
     enable_group: bool = True
     max_sessions: int = Field(default=1000, gt=0)
     enable_username: bool = False
@@ -60,6 +61,7 @@ class Config(BaseModel):
                 Trigger_mode=toml_config["plugin"]["llm_chat"]["Trigger_mode"],
                 group_chat_isolation=toml_config["plugin"]["llm_chat"]["group_chat_isolation"],
                 enable_private=toml_config["plugin"]["llm_chat"]["enable_private"],
+                disabled_message=toml_config["plugin"]["llm_chat"].get("disabled_message", "Bot已禁用"),
                 enable_group=toml_config["plugin"]["llm_chat"]["enable_group"],
                 max_sessions=toml_config["plugin"]["llm_chat"].get("max_sessions", 1000),
                 enable_username=toml_config["plugin"]["llm_chat"].get("enable_username", False),

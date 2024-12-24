@@ -131,10 +131,9 @@ async def handle_chat(
 ):
     
     # 检查群聊/私聊开关，判断消息对象是否是群聊/私聊的实例
-    if isinstance(event, GroupMessageEvent) and not plugin_config.plugin.enable_group:
-        await chat_handler.finish("不可以在群聊中使用")
-    if not isinstance(event, GroupMessageEvent) and not plugin_config.plugin.enable_private:
-        await chat_handler.finish("不可以在私聊中使用")
+    if (isinstance(event, GroupMessageEvent) and not plugin_config.plugin.enable_group) or \
+       (not isinstance(event, GroupMessageEvent) and not plugin_config.plugin.enable_private):
+        await chat_handler.finish(plugin_config.plugin.disabled_message)
         
     # 获取用户名
     user_name = ""  # 初始化为空字符串
@@ -404,5 +403,13 @@ async def handle_chat_command(args: Message = CommandArg()):
             sessions.clear()
         await chat_command.finish("已清理所有历史会话。")
     
+    elif command == "down":
+        plugin_config.plugin.enable_private = False
+        plugin_config.plugin.enable_group = False
+        await chat_command.finish("已关闭对话功能")
+    elif command == "up":
+        plugin_config.plugin.enable_private = True
+        plugin_config.plugin.enable_group = True
+        await chat_command.finish("已开启对话功能")
     else:
         await chat_command.finish("无效的命令，请使用 'chat model <模型名字>' 或 'chat clear'.")
