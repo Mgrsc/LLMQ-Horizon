@@ -152,7 +152,6 @@ async def handle_chat(
                 print(f"获取用户信息失败: {e}")
                 user_name = str(event.user_id)
     print(user_name)
-
     image_urls = [
         seg.data["url"]
         for seg in message
@@ -164,7 +163,19 @@ async def handle_chat(
             for seg in event.reply.message
             if seg.type == "image" and seg.data.get("url")
         )
-
+    
+    # 提取视频链接
+    video_urls = [
+        seg.data["url"]
+        for seg in message
+        if seg.type == "video" and seg.data.get("url")
+    ]
+    if event.reply:
+       video_urls.extend(
+            seg.data["url"]
+            for seg in event.reply.message
+            if seg.type == "video" and seg.data.get("url")
+       )
 
     # 处理消息内容,移除触发词
     full_content = remove_trigger_words(plain_text, message)
@@ -179,6 +190,8 @@ async def handle_chat(
     
     if image_urls:
         full_content += "\n图片URL：" + "\n".join(image_urls)
+    if video_urls:
+        full_content += "\n视频URL：" + "\n".join(video_urls)
     
     # 构建会话ID
     if isinstance(event, GroupMessageEvent):
@@ -188,22 +201,18 @@ async def handle_chat(
             thread_id = f"group_{event.group_id}"
     else:
         thread_id = f"private_{event.user_id}"
-
     print(f"Current thread: {thread_id}")
     await cleanup_old_sessions()
     session = await get_or_create_session(thread_id)
-
     # 如果当前会话没有图，则创建一个
     if session.graph is None:
         session.graph = graph_builder.compile(checkpointer=session.memory)
-
     try:
         # 在发送给 LangGraph 的消息内容中添加用户名
         if plugin_config.plugin.enable_username and user_name:
             message_content = f"{user_name}: {full_content}"
         else:
             message_content = full_content
-
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(
             None,
@@ -213,7 +222,6 @@ async def handle_chat(
         )
         formatted_output = format_messages_for_print(result["messages"])
         print(formatted_output)
-
         if not result["messages"]:
             response = "对不起，我现在无法回答。"
         else:
@@ -243,20 +251,56 @@ async def handle_chat(
                 del sessions[thread_id]
         response = f"""卧槽，报错了：{e}\n尝试自行修复中，聊聊别的吧！"""
         
-    # 检查是否有图片链接，并发送图片或文本消息
-    match = re.search(r'https?://[^\s]+?\.(?:png|jpg|jpeg|gif|bmp|webp)', response, re.IGNORECASE)
-    if match:
-        image_url = match.group(0)
-        pattern = rf'\[.*?\]\({re.escape(image_url)}\)|{re.escape(image_url)}'
-        message_content = re.sub(pattern, '', response)
-
+    # 检查是否有图片或视频链接，并发送图片或视频或文本消息
+    image_match = re.search(r'https?://[^\s]+?\.(?:png|jpg|jpeg|gif|bmp|webp|svg)', response, re.IGNORECASE)
+    video_match = re.search(r'https?://[^\s]+?\.(?:mp4|avi|mov|mkv)', response, re.IGNORECASE)
+    if image_match:
+        image_url = image_match.group(0)
+        message_content = response.replace(image_url, "")
+        if image_url.endswith(".svg"):
+            try:
+                async with httpx.AsyncClient() as client:
+                    resp = await client.get(image_url)
+                    resp.raise_for_status()
+                    svg_data = resp.content
+                filename = f"{uuid.uuid4().hex}.png"
+                output_path = Path("temp_server") / filename
+                
+                subprocess.run(
+                    ["rsvg-convert", "-f", "png", "-o", str(output_path)],
+                    input=svg_data,
+                    check=True,
+                )
+                
+                with open(output_path,"rb") as f:
+                    image_data = f.read()
+                base64_data = base64.b64encode(image_data).decode()
+                image_segment = MessageSegment.image(f"base64://{base64_data}")
+                await chat_handler.finish(Message(message_content) + image_segment)
+                
+            except MatcherException:
+                raise
+            except Exception as e:
+                await chat_handler.finish(Message(message_content) + MessageSegment.text(f" (未知错误: {e})"))
+        else:
+            try:
+                await chat_handler.finish(Message(message_content) + MessageSegment.image(image_url))
+            except ActionFailed:
+                await chat_handler.finish(Message(message_content) + MessageSegment.text(" (图片发送失败)"))
+            except MatcherException:
+                raise
+            except Exception as e :
+                 await chat_handler.finish(Message(message_content) + MessageSegment.text(f" (未知错误： {e})"))
+    elif video_match:
+        video_url = video_match.group(0)
+        message_content = response.replace(video_url, "")
         try:
-            await chat_handler.finish(Message(message_content) + MessageSegment.image(image_url))
+            await chat_handler.finish(Message(message_content) + MessageSegment.video(video_url))
         except ActionFailed:
-            await chat_handler.finish(Message(message_content) + MessageSegment.text(" (图片发送失败)"))
+            await chat_handler.finish(Message(message_content) + MessageSegment.text(" (视频发送失败)"))
         except MatcherException:
             raise
-        except Exception as e :
+        except Exception as e:
             await chat_handler.finish(Message(message_content) + MessageSegment.text(f" (未知错误： {e})"))
     else:
         await chat_handler.finish(Message(response))
