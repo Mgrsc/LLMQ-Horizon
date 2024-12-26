@@ -1,0 +1,22 @@
+{
+    "network": {
+      "httpServers": [],
+      "httpClients": [],
+      "websocketServers": [],
+      "websocketClients": [
+        {
+          "name": "WsClient",
+          "enable": true,
+          "url": "ws://llmq:8082/onebot/v11/ws",
+          "messagePostFormat": "array",
+          "reportSelfMessage": false,
+          "reconnectInterval": 5000,
+          "token": "",
+          "debug": false,
+          "heartInterval": 30000
+        }
+      ]
+    },
+    "musicSignUrl": "",
+    "enableLocalFile2Url": false
+}

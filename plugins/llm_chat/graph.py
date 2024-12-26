@@ -1,4 +1,4 @@
-from typing import Annotated, List, Union
+from typing import Annotated, List, Union, Any, Optional, Dict
 from typing_extensions import TypedDict
 from langgraph.graph import StateGraph, START
 from langgraph.graph.message import add_messages
@@ -6,7 +6,6 @@ from langgraph.prebuilt import ToolNode, tools_condition
 from langchain_core.messages import SystemMessage, trim_messages, HumanMessage, AIMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 from langchain_groq import ChatGroq
-from typing import Any, Optional, List, Dict
 from langchain_core.language_models import LanguageModelInput
 from langchain_google_genai import ChatGoogleGenerativeAI
 from .tools import load_tools
@@ -15,27 +14,20 @@ import json
 
 plugin_config = Config.load_config()
 
-groq = {
+groq_models = {
     "llama3-groq-70b-8192-tool-use-preview",
     "llama-3.3-70b-versatile"
-    }
+}
 
 class MyOpenAI(ChatOpenAI):
     @property
     def _default_params(self) -> Dict[str, Any]:
-        """Get the default parameters for calling OpenAI API."""
         params = super()._default_params
         if "max_completion_tokens" in params:
             params["max_tokens"] = params.pop("max_completion_tokens")
         return params
 
-    def _get_request_payload(
-        self,
-        input_: LanguageModelInput,
-        *,
-        stop: Optional[List[str]] = None,
-        **kwargs: Any,
-    ) -> dict:
+    def _get_request_payload(self, input_: LanguageModelInput, *, stop: Optional[List[str]] = None, **kwargs: Any) -> dict:
         payload = super()._get_request_payload(input_, stop=stop, **kwargs)
         if "max_completion_tokens" in payload:
             payload["max_tokens"] = payload.pop("max_completion_tokens")
@@ -43,17 +35,12 @@ class MyOpenAI(ChatOpenAI):
 
 def get_llm(model=None):
     """根据配置获取适当的 LLM 实例"""
-    if model is None:
-        model = plugin_config.llm.model
-    else:
-        model = model.lower()
-            
-    print(f"graph使用模型: {model}")
+    model = model.lower() if model else plugin_config.llm.model
+    print(f"使用模型: {model}")
 
-    
     try:
-        if groq.intersection({model}):
-            print("使用 Grover")
+        if model in groq_models:
+            print("使用groq")
             return ChatGroq(
                 model=model,
                 temperature=plugin_config.llm.temperature,
@@ -61,7 +48,7 @@ def get_llm(model=None):
                 api_key=plugin_config.llm.groq_api_key,
             )
         elif "gemini" in model:
-            print("使用 Google Generative AI")
+            print("使用google")
             return ChatGoogleGenerativeAI(
                 model=model,
                 temperature=plugin_config.llm.temperature,
@@ -122,11 +109,8 @@ def build_graph(config: Config, llm):
 
     return graph_builder
 
-
-def format_messages_for_print(
-    messages: List[Union[SystemMessage, HumanMessage, AIMessage, ToolMessage]]
-) -> str:
-    """格式化 LangChain 消息列表，提取并格式化 SystemMessage, HumanMessage, AIMessage (包括工具调用), 和 ToolMessage 的内容."""
+def format_messages_for_print(messages: List[Union[SystemMessage, HumanMessage, AIMessage, ToolMessage]]) -> str:
+    """格式化 LangChain 消息列表"""
     output = []
     for message in messages:
         if isinstance(message, SystemMessage):
@@ -145,7 +129,5 @@ def format_messages_for_print(
                         args = tool_call['args']
                     output.append(f"  Tool Arguments: {args}\n")
         elif isinstance(message, ToolMessage):
-            output.append(
-                f"ToolMessage: Tool Name: {message.name}  Tool content: {message.content}\n"
-            )
+            output.append(f"ToolMessage: Tool Name: {message.name}  Tool content: {message.content}\n")
     return "".join(output)

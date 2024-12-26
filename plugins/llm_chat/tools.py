@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 import tomli
 
-def get_builtin_tools(config: dict) -> Dict[str, BaseTool]:
+def _get_builtin_tools(config: dict) -> Dict[str, BaseTool]:
     """根据配置返回内置工具的初始化方法字典。"""
     return {
         "tavily_search": lambda: TavilySearchResults(
@@ -16,12 +16,7 @@ def get_builtin_tools(config: dict) -> Dict[str, BaseTool]:
     }
 
 def load_tools(enabled_tools: Optional[List[str]] = None, tool_paths: Optional[List[str]] = None) -> List[BaseTool]:
-    """加载启用的工具
-
-    Args:
-        enabled_tools: 可选的已启用工具列表,如果为None则从配置文件加载
-        tool_paths: 可选的工具路径列表
-    """
+    """加载启用的工具"""
     tools_list = []
 
     if enabled_tools is None:
@@ -34,7 +29,7 @@ def load_tools(enabled_tools: Optional[List[str]] = None, tool_paths: Optional[L
         except FileNotFoundError:
             raise FileNotFoundError(f"Tools config file not found at {config_path}")
 
-        builtin_tool_factories = get_builtin_tools(config)
+        builtin_tool_factories = _get_builtin_tools(config)
         
         tavily_config = config.get("tavily")
         if tavily_config and "api_key" in tavily_config:

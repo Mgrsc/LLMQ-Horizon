@@ -1,11 +1,8 @@
 services:
   napcat:
-    image: mlikiowa/napcat-docker:v4.0.3
+    image: mlikiowa/napcat-docker:latest
     container_name: napcat
     environment:
-      - ACCOUNT=<qq>
-      - WSR_ENABLE=true
-      - WS_URLS=["ws://llmq:40000/onebot/v11/ws"]
       - NAPCAT_GID=0
       - NAPCAT_UID=0
     restart: always

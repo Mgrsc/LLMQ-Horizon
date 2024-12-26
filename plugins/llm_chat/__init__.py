@@ -38,6 +38,7 @@ os.environ["OPENAI_API_KEY"] = plugin_config.llm.api_key
 os.environ["OPENAI_BASE_URL"] = plugin_config.llm.base_url
 os.environ["GOOGLE_API_KEY"] = plugin_config.llm.google_api_key
 
+
 # 会话模板
 class Session:
     def __init__(self, thread_id: str):
@@ -83,8 +84,8 @@ graph_builder = build_graph(plugin_config, llm)
 
 def chat_rule(event: Event) -> bool:
     """定义触发规则"""
-    trigger_mode = plugin_config.plugin.Trigger_mode
-    trigger_words = plugin_config.plugin.Trigger_words
+    trigger_mode = plugin_config.plugin.trigger_mode
+    trigger_words = plugin_config.plugin.trigger_words
     msg = str(event.get_message())
 
     if "at" in trigger_mode and event.is_tome():
@@ -112,13 +113,35 @@ def remove_trigger_words(text: str, message: Message) -> str:
             text = text.replace(str(seg), "").strip()
     
     # 移除命令前缀
-    if hasattr(plugin_config.plugin, 'Trigger_words'):
-        for cmd in plugin_config.plugin.Trigger_words:
+    if hasattr(plugin_config.plugin, 'trigger_words'):
+        for cmd in plugin_config.plugin.trigger_words:
             if text.startswith(cmd):
                 text = text[len(cmd):].strip()
                 break
     
     return text
+
+async def send_in_chunks(response: str) -> bool:
+    """
+    分段发送逻辑, 返回True表示已完成发送, 否则False
+    """
+    for sep in plugin_config.plugin.chunk.words:
+        if sep in response:
+            chunks = response.split(sep)
+            for i, chunk in enumerate(chunks):
+                chunk = chunk.strip()
+                if not chunk:
+                    continue
+                for word in plugin_config.plugin.chunk.words:
+                    chunk = chunk.replace(word, "")
+                chunk = chunk.strip()
+                if i == len(chunks) - 1:
+                    await chat_handler.finish(Message(chunk))
+                else:
+                    await chat_handler.send(Message(chunk))
+                    await asyncio.sleep(calculate_typing_delay(chunk))
+            return True
+    return False
 
 @chat_handler.handle()
 async def handle_chat(
@@ -181,11 +204,8 @@ async def handle_chat(
     
     # 如果全是空白字符,使用配置中的随机回复
     if not full_content.strip():
-        if hasattr(plugin_config.plugin, "empty_message_replies"):
-            reply = choice(plugin_config.plugin.empty_message_replies)
-            await chat_handler.finish(Message(reply))
-        else:
-            await chat_handler.finish("您想说什么呢?")
+        reply = choice(plugin_config.responses.empty_message_replies)
+        await chat_handler.finish(Message(reply))
     
     if image_urls:
         full_content += "\n图片URL：" + "\n".join(image_urls)
@@ -244,55 +264,40 @@ async def handle_chat(
             else:
                 response = "对不起，我没有理解您的问题。"
     except Exception as e:
-        print(f"调用 LangGraph 时发生错误: {e}")
+        error_message = str(e)
+        print(f"调用 LangGraph 时发生错误: {error_message}")
+        
         async with sessions_lock:
             if thread_id in sessions:
                 del sessions[thread_id]
-        response = f"""卧槽，报错了：{e}\n尝试自行修复中，聊聊别的吧！"""
         
+        # 只处理两种情况：list strip错误和其他所有错误
+        if "'list' object has no attribute 'strip'" in error_message:
+            print("max_tokens设置过小，导致生成的工具参数不完整")
+            response = plugin_config.responses.token_limit_error
+        else:
+            response = plugin_config.responses.general_error
     # 检查是否有图片或视频链接，并发送图片或视频或文本消息
-    image_match = re.search(r'https?://[^\s]+?\.(?:png|jpg|jpeg|gif|bmp|webp|svg)', response, re.IGNORECASE)
+    image_match = re.search(r'https?://[^\s]+?\.(?:png|jpg|jpeg|gif|bmp|webp)', response, re.IGNORECASE)
     video_match = re.search(r'https?://[^\s]+?\.(?:mp4|avi|mov|mkv)', response, re.IGNORECASE)
     if image_match:
         image_url = image_match.group(0)
-        message_content = response.replace(image_url, "")
-        if image_url.endswith(".svg"):
-            try:
-                async with httpx.AsyncClient() as client:
-                    resp = await client.get(image_url)
-                    resp.raise_for_status()
-                    svg_data = resp.content
-                filename = f"{uuid.uuid4().hex}.png"
-                output_path = Path("temp_server") / filename
-                
-                subprocess.run(
-                    ["rsvg-convert", "-f", "png", "-o", str(output_path)],
-                    input=svg_data,
-                    check=True,
-                )
-                
-                with open(output_path,"rb") as f:
-                    image_data = f.read()
-                base64_data = base64.b64encode(image_data).decode()
-                image_segment = MessageSegment.image(f"base64://{base64_data}")
-                await chat_handler.finish(Message(message_content) + image_segment)
-                
-            except MatcherException:
-                raise
-            except Exception as e:
-                await chat_handler.finish(Message(message_content) + MessageSegment.text(f" (未知错误: {e})"))
-        else:
-            try:
-                await chat_handler.finish(Message(message_content) + MessageSegment.image(image_url))
-            except ActionFailed:
-                await chat_handler.finish(Message(message_content) + MessageSegment.text(" (图片发送失败)"))
-            except MatcherException:
-                raise
-            except Exception as e :
-                 await chat_handler.finish(Message(message_content) + MessageSegment.text(f" (未知错误： {e})"))
+        message_content = re.sub(r'!\[.*?\]\((.*?)\)', r'\1', response)
+        message_content = re.sub(r'\[.*?\]\((.*?)\)', r'\1', message_content)
+        message_content = message_content.replace(image_url, "").strip()
+        try:
+            await chat_handler.finish(Message(message_content) + MessageSegment.image(image_url))
+        except ActionFailed:
+            await chat_handler.finish(Message(message_content) + MessageSegment.text(" (图片发送失败)"))
+        except MatcherException:
+            raise
+        except Exception as e :
+             await chat_handler.finish(Message(message_content) + MessageSegment.text(f" (未知错误： {e})"))
     elif video_match:
         video_url = video_match.group(0)
-        message_content = response.replace(video_url, "")
+        message_content = re.sub(r'!\[.*?\]\((.*?)\)', r'\1', response)
+        message_content = re.sub(r'\[.*?\]\((.*?)\)', r'\1', message_content)
+        message_content = message_content.replace(video_url, "").strip()
         try:
             await chat_handler.finish(Message(message_content) + MessageSegment.video(video_url))
         except ActionFailed:
@@ -302,11 +307,20 @@ async def handle_chat(
         except Exception as e:
             await chat_handler.finish(Message(message_content) + MessageSegment.text(f" (未知错误： {e})"))
     else:
-        await chat_handler.finish(Message(response))
+        if plugin_config.plugin.chunk.enable:
+            if await send_in_chunks(response):
+                return
+            await chat_handler.finish(Message(response))
+        else:
+            await chat_handler.finish(Message(response))
 
-
-
-
+def calculate_typing_delay(text: str) -> float:
+    """
+    计算模拟打字延迟
+    基于配置的每秒处理字符数计算延迟
+    """
+    delay = len(text) / plugin_config.plugin.chunk.char_per_s
+    return min(delay, plugin_config.plugin.chunk.max_time)
 
 group_chat_isolation = on_command(
     "chat group", 
@@ -411,5 +425,17 @@ async def handle_chat_command(args: Message = CommandArg()):
         plugin_config.plugin.enable_private = True
         plugin_config.plugin.enable_group = True
         await chat_command.finish("已开启对话功能")
+    elif command == "chunk":
+        if len(command_args) < 2:
+            await chat_command.finish(f"当前分开发送开关: {plugin_config.plugin.chunk.enable}")
+        chunk_str = command_args[1].strip().lower()
+        if chunk_str == "true":
+            plugin_config.plugin.chunk.enable = True
+            await chat_command.finish("已开启分开发送回复功能")
+        elif chunk_str == "false":
+            plugin_config.plugin.chunk.enable = False
+            await chat_command.finish("已关闭分开发送回复功能")
+        else:
+            await chat_command.finish("请输入 true 或 false")
     else:
         await chat_command.finish("无效的命令，请使用 'chat model <模型名字>' 或 'chat clear'.")

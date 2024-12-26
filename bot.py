@@ -8,7 +8,7 @@ config = toml.load(config_path)
 nonebot.init(
     superusers={config['llm']['superusers']},
     host="0.0.0.0",
-    port=40000,command_start={"~"},
+    port=8082,command_start={config['llm']['command_start']},
     command_sep={"."})
 
 driver = nonebot.get_driver()

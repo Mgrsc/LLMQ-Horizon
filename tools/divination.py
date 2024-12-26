@@ -77,7 +77,7 @@ BaGua_num = {
     "巽": 5, "坎": 6, "艮": 7, "坤": 8
 }
 
-def get_gua_numbers(year, month, day, hour, minute, second, timezone="Asia/Shanghai"):
+def _calculate_gua_numbers(year, month, day, hour, minute, second):
     """
     梅花易数起卦函数，根据时间起卦，年月日时起卦法
 
@@ -88,7 +88,6 @@ def get_gua_numbers(year, month, day, hour, minute, second, timezone="Asia/Shang
         hour: 公历小时
         minute: 公历分钟
         second: 公历秒数
-        timezone: 时区
 
     Returns:
         上卦, 下卦, 动爻, 上卦名，下卦名，动爻数字
@@ -138,7 +137,7 @@ def get_gua_numbers(year, month, day, hour, minute, second, timezone="Asia/Shang
 
     return upper_trigram_number, lower_trigram_number, moving_yao_number, shanggua_name, xiagua_name, moving_yao_number
 
-def get_time():
+def _get_current_time_info():
     """
     获取当前时间信息和四柱
     """
@@ -167,7 +166,7 @@ def get_time():
 
     sizhu_cn = f"{Gan[yTG.tg]}{Zhi[yTG.dz]}年 {Gan[mTG.tg]}{Zhi[mTG.dz]}月 {Gan[dTG.tg]}{Zhi[dTG.dz]}日 {Gan[hTG.tg]}{Zhi[hTG.dz]}时"
 
-    upper_trigram_number, lower_trigram_number, moving_yao_number, shanggua_name, xiagua_name, _ = get_gua_numbers(china_time.year, china_time.month, china_time.day, china_time.hour, china_time.minute, china_time.second)
+    upper_trigram_number, lower_trigram_number, moving_yao_number, shanggua_name, xiagua_name, _ = _calculate_gua_numbers(china_time.year, china_time.month, china_time.day, china_time.hour, china_time.minute, china_time.second)
     
     return lunar_time, gregorian_time, sizhu_cn, upper_trigram_number, lower_trigram_number, moving_yao_number, shanggua_name, xiagua_name
 
@@ -178,7 +177,7 @@ def divination(query: str):
     Args:
         query: 问卜内容和相关信息
     """
-    lunar_time, gregorian_time, sizhu_cn, upper_trigram_number, lower_trigram_number, moving_yao_number, shanggua_name, xiagua_name = get_time()
+    lunar_time, gregorian_time, sizhu_cn, upper_trigram_number, lower_trigram_number, moving_yao_number, shanggua_name, xiagua_name = _get_current_time_info()
     
     system_prompt = f"""## 角色设定
 你是一位精通梅花易数的资深算卦先生，拥有数十年周易研究经验。
@@ -337,7 +336,6 @@ def divination(query: str):
     )
     
     prompt = messages.invoke({"query": query})
-    print(prompt)
     response = llm.invoke(prompt)
     
     return response.content

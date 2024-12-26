@@ -9,6 +9,8 @@ groq_api_key = "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""
 google_api_key = "your_google_api_key"
 # OpenAI API密钥
 api_key = "your_openai_api_key"
+# 触发命令前缀
+command_start = "?"
 # OpenAI API基础URL
 base_url = "https://api.openai.com/v1"
 # 生成文本的随机性 (0-1)
@@ -44,9 +46,21 @@ enable_group = true
 # 最大保存的会话数量
 max_sessions = 1000
 # 默认回复列表
+
+
+[chunk]
+enable = true
+words = ["||"]
+max_time = 10.0
+char_per_s = 5
+
+[responses]
 empty_message_replies = [
-    "说",
-    "？",
-    "内容？",
-    "问题？"
+    "叫冰哥又不说话?",
+    "叫冰冰干嘛呢?",
+    "到!",
+    "需要帮助吗?",
+    "有什么可以帮你的?",
 ]
+token_limit_error = "太长了发不出来，换一个吧"  # max_tokens设置太小无法输出报错设置回复内容
+general_error = "卧槽，报错了，尝试自行修复中，聊聊别的吧！"  # 位置报错回复
