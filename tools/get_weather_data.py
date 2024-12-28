@@ -10,12 +10,13 @@ os.environ["OPENWEATHER_API_KEY"] = weather_config.get('api_key', '')
 
 @tool
 def get_weather_data(location: str, country_code: str, query_time: str = None, query_type: str = 'current'):
-    """检索特定位置和时间的天气数据。
+    """Retrieve weather data for a specific location and time.
+
     Args:
-        location: 城市名称或者中国的直辖市或副省级城市. e.g. 成都、北京、上海.
-        country_code: 该地点的 ISO 3166 国家代码. e.g. CN.
-        query_time: 检索天气数据的时间，格式为“YYYY-MM-DD HH:MM:SS”。可选。
-        query_type: 要检索的天气数据类型。选项包括“current”（当前）、“today”（今天）、“hourly”（每小时）、“daily”（每天）。“daily”可以查询一周中每天的天气。可选。
+        location: City name or a municipality/sub-provincial city in China. e.g., Chengdu, Beijing, Shanghai.
+        country_code: The ISO 3166 country code for the location. e.g., CN.
+        query_time: The time for which to retrieve weather data, in "YYYY-MM-DD HH:MM:SS" format. Optional.
+        query_type: The type of weather data to retrieve. Options include "current" (current), "today" (today), "hourly" (hourly), "daily" (daily). "daily" can query the weather for each day of the week. Optional.
     """
     api_key = os.environ.get('OPENWEATHER_API_KEY')
 

@@ -12,17 +12,19 @@ def _get_headers(memos_config):
         headers["Authorization"] = f"Bearer {auth_token}"
     return headers
 
-def _create_memo(base_url, headers, content, visibility):
+def _create_memo(base_url, headers, content, visibility, user_name=None):
     """创建备忘录."""
     url = f"{base_url}/api/v1/memos"
+    
+    formatted_content = f"{user_name}: {content}" if user_name else content
+    
     payload = {
-        "content": content,
+        "content": formatted_content,
         "visibility": visibility,
     }
     response = requests.post(url, headers=headers, json=payload)
     if (response.status_code == 200):
         data = response.json()
-        # 格式化返回信息
         return {
             "name": data.get("name", "Unknown"),
             "time": data.get("createTime", "").replace("T", " ").replace("Z", ""),
@@ -31,7 +33,7 @@ def _create_memo(base_url, headers, content, visibility):
     else:
         return {"error": f"Create failed: {response.text}"}
 
-def _search_memos(base_url, headers, page_size, user_id=None, search_keyword=None, limit=None):
+def _search_memos(base_url, headers, page_size, user_id=None, search_keyword=None, limit=None, user_name=None):
     """检索备忘录."""
     url = f"{base_url}/api/v1/memos"
     params = {
@@ -42,13 +44,34 @@ def _search_memos(base_url, headers, page_size, user_id=None, search_keyword=Non
 
     # 使用传入的limit，如果没有则使用page_size
     result_limit = limit if limit else page_size
-
-    if (not search_keyword):
+    
+    # 合并所有搜索关键词
+    search_terms = []
+    
+    # 处理search_keyword
+    if search_keyword:
+        if isinstance(search_keyword, str):
+            search_terms.extend([kw.strip() for kw in search_keyword.split(',')])
+        elif isinstance(search_keyword, list):
+            search_terms.extend(search_keyword)
+        else:
+            search_terms.append(str(search_keyword))
+    
+    # 添加user_name作为搜索关键词
+    if user_name:
+        if isinstance(user_name, str):
+            search_terms.extend([name.strip() for name in user_name.split(',')])
+        elif isinstance(user_name, list):
+            search_terms.extend(user_name)
+        else:
+            search_terms.append(str(user_name))
+            
+    if not search_terms:
+        # 无搜索关键词时的逻辑保持不变
         response = requests.get(url, headers=headers, params=params)
         if (response.status_code == 200):
             data = response.json()
             if ("memos" in data):
-                # 过滤返回字段
                 filtered_memos = [{
                     "name": memo["name"],
                     "updateTime": memo["updateTime"].replace("T", " ").replace("Z", ""),
@@ -61,17 +84,8 @@ def _search_memos(base_url, headers, page_size, user_id=None, search_keyword=Non
         else:
             return {"error": f"Search failed: {response.text}"}
     else:
-        # 处理关键词输入
-        if isinstance(search_keyword, str):
-            # 支持逗号分隔的字符串
-            search_keywords = [kw.strip() for kw in search_keyword.split(',')]
-        elif isinstance(search_keyword, list):
-            search_keywords = search_keyword
-        else:
-            search_keywords = [str(search_keyword)]
-
         combined_memos = []
-        for kw in search_keywords:
+        for kw in search_terms:
             all_memos = []
             page_token = None
             while True:
@@ -137,15 +151,17 @@ def _delete_memo(base_url, headers, memo_ids):
 
 memos_config = config.get("memos", {})
 @tool
-def memos_manage(operation: str, create_content: str = None, search_keyword: str = None, delete_id: str = None, limit: int = None):
+def memos_manage(operation: str, create_content: str = None, search_keyword: str = None, 
+                delete_id: str = None, limit: int = None, user_name: str = None):
     """创建、检索、删除备忘录, 对memos进行操作
 
     Args:
         operation: 操作类型，可选值为 "create", "search", "delete".
         create_content: 创建备忘录的内容，使用 ###$$$%%% 作为多条备忘录的分隔符 (仅当 operation 为 "create" 时使用).可选
-        search_keyword: 检索备忘录的关键词,多个关键词以逗号分隔,不传则返回最新备忘录 e.g.我喜欢吃南瓜饼->"喜欢吃","南瓜饼" (仅当 operation 为 "search" 时使用). 可选
-        delete_id: 要删除的备忘录的 id,支持多个id以逗号分隔 e.g. "1,2,3" (仅当 operation 为 "delete" 时使用). 可选
+        search_keyword: 检索备忘录的关键词,多个关键词以逗号分隔,不传则返回最新备忘录 (仅当 operation 为 "search" 时使用). 可选
+        delete_id: 要删除的备忘录的 id,支持多个id以逗号分隔 (仅当 operation 为 "delete" 时使用). 可选
         limit: 限制搜索结果数量 (仅当 operation 为 "search" 时使用). 可选
+        user_name: 当operation为create时作为前缀添加到内容中；当operation为search时作为搜索关键词使用. 可选
     """
     global memos_config
     if (memos_config is None):
@@ -174,12 +190,12 @@ def memos_manage(operation: str, create_content: str = None, search_keyword: str
 
         results = []
         for cnt in contents_list:
-            create_result = _create_memo(base_url, headers, cnt, default_visibility)
+            create_result = _create_memo(base_url, headers, cnt, default_visibility, user_name)
             results.append(create_result)
         return {"results": results}
 
     elif (operation == "search"):
-        return _search_memos(base_url, headers, default_page_size, user_id, search_keyword, limit)
+        return _search_memos(base_url, headers, default_page_size, user_id, search_keyword, limit, user_name)
 
     elif (operation == "delete"):
         if (not delete_id):

@@ -173,9 +173,10 @@ def _get_current_time_info():
 
 @tool
 def divination(query: str):
-    """梅花易数占卜问卦,运势等等
+    """Plum Blossom Numerology Divination, Fortune Telling, and so on
+
     Args:
-        query: 问卜内容和相关信息
+        query: Divination content and related information
     """
     lunar_time, gregorian_time, sizhu_cn, upper_trigram_number, lower_trigram_number, moving_yao_number, shanggua_name, xiagua_name = _get_current_time_info()
     

@@ -14,6 +14,10 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Generate timestamp
+        id: timestamp
+        run: echo "timestamp=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
+
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
@@ -27,6 +31,7 @@ jobs:
           push: true
           tags: |
             bitfennec/llmq-horizon:latest
+            bitfennec/llmq-horizon:${{ steps.timestamp.outputs.timestamp }}
           platforms: linux/amd64
           cache-from: type=registry,ref=bitfennec/llmq-horizon:buildcache
           cache-to: type=registry,ref=bitfennec/llmq-horizon:buildcache,mode=max

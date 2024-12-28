@@ -54,7 +54,7 @@ def _draw_via_fal(prompt: str, image_size: str = "square_hd", style: str = "any"
         url = result['images'][0].get('url', '')
         if url:
             _save_image(url)
-            return f"绘图完成: {url}"
+            return url
     return None
 
 def _convert_size_for_glm(fal_size: str) -> str:
@@ -106,7 +106,7 @@ def _draw_via_glm(prompt: str, size: str = "square_hd") -> str:
             url = result["data"][0].get("url")
             if url:
                 _save_image(url)
-                return f"绘图完成: {url}"
+                return url
             else:
                 return f"未找到图片URL, 响应数据: {result}"
         else:
@@ -146,18 +146,20 @@ from langchain_core.tools import tool
 
 @tool
 def draw(prompt: str, image_size: str = "square_hd", style: str = "any", provider: str = "glm"):
-    """根据要求进行绘画然后返回图片链接
+    """Draw an image according to the requirements and return the image link.
+
     Args:
-         prompt: 要画的内容描述
-         image_size: 图片尺寸，FAL可选值: "square_hd", "square", "portrait_4_3", "portrait_16_9", "landscape_4_3", "landscape_16_9"
-                    GLM可选值: "1024x1024", "1024x1792", "1792x1024"
-         style: FAL图片风格，可选值为 "any", "realistic_image", "digital_illustration", "realistic_image/b_and_w", "realistic_image/hard_flash", "realistic_image/hdr", "realistic_image/natural_light", "realistic_image/studio_portrait", "realistic_image/enterprise", "realistic_image/motion_blur", "digital_illustration/pixel_art", "digital_illustration/hand_drawn", "digital_illustration/grain", "digital_illustration/infantile_sketch", "digital_illustration/2d_art_poster", "digital_illustration/handmade_3d", "digital_illustration/hand_drawn_outline", "digital_illustration/engraving_color", "digital_illustration/2d_art_poster_2"
-         provider: 绘图提供商，可选值为 "fal" 或 "glm"
+        prompt: Description of the content to be drawn.
+        image_size: Image size.  Available values for FAL: "square_hd", "square", "portrait_4_3", "portrait_16_9", "landscape_4_3", "landscape_16_9".  Available values for GLM: "1024x1024", "1024x1792", "1792x1024".
+        style: Image style for FAL. Available values: "any", "realistic_image", "digital_illustration", "realistic_image/b_and_w", "realistic_image/hard_flash", "realistic_image/hdr", "realistic_image/natural_light", "realistic_image/studio_portrait", "realistic_image/enterprise", "realistic_image/motion_blur", "digital_illustration/pixel_art", "digital_illustration/hand_drawn", "digital_illustration/grain", "digital_illustration/infantile_sketch", "digital_illustration/2d_art_poster", "digital_illustration/handmade_3d", "digital_illustration/hand_drawn_outline", "digital_illustration/engraving_color", "digital_illustration/2d_art_poster_2".
+        provider: Drawing provider. Available values: "fal" or "glm".
     """
     if provider == "fal":
-        return _draw_via_fal(prompt, image_size, style)
+        result = _draw_via_fal(prompt, image_size, style)
+        return f"Tool Response: {result}"
     elif provider == "glm":
-        return _draw_via_glm(prompt, image_size)
+        result = _draw_via_glm(prompt, image_size)
+        return f"Tool Response: {result}"
     else:
         return "不支持的绘图提供商"
 

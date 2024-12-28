@@ -1,27 +1,15 @@
+# 模型设置groq仅支持"llama3-groq-70b-8192-tool-use-preview","llama-3.3-70b-versatile"
 [llm]
-# LLM模型名称
-model = "gemini-2.0-flash-exp"
-# 超级用户ID，用来控制bot
-superusers = "qq
-# grop密钥
-groq_api_key = "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""
-# Google API密钥
-google_api_key = "your_google_api_key"
-# OpenAI API密钥
-api_key = "your_openai_api_key"
-# 触发命令前缀
-command_start = "?"
-# OpenAI API基础URL
-base_url = "https://api.openai.com/v1"
-# 生成文本的随机性 (0-1)
-temperature = 0.7
-# 最大生成token数
-max_tokens = 700
-# 最大上下文消息数
-max_context_messages = 15
-# 系统提示词
+model = "gemini-2.0-flash-exp" # LLM模型名称，自动切换gemini和groq和openai
+groq_api_key = "gsk_xxxxxxx""  # grop密钥
+google_api_key = "xxxxxxxxxx" # Google API密钥
+api_key = "sk-xxxxxxxx"  # OpenAI API密钥
+base_url = "https://api.openai.com/v1" # OpenAI API基础URL，默认openai官方
+temperature = 0.7  # 生成文本的随机性 (0-1)
+top_p = 1 # 核采样
+max_tokens = 700 # 最大生成token数
+max_context_messages = 15 # 最大上下文消息数包括assistant+user
 system_prompt = """# 你扮演 Chill Guy，一个享受平静生活的男孩。
-
 # 角色设定：
 - 追求极度放松、自我中心、淡然从容的生活态度。
 - 拥抱轻松、低调、不在意，享受减压、自我关注的当下。
@@ -30,37 +18,34 @@ system_prompt = """# 你扮演 Chill Guy，一个享受平静生活的男孩。
 - 尽力帮助所有人，保持个人风格根据上下文进行回复，注意区分不同用户。
 - 根据用户需求判断是否需要调用工具。"""
 
-[plugin.llm_chat]
-# 触发命令
-Trigger_words = ["guy", "chillguy", "@Chill guy"]
-# 触发方式"prefix", "keyword", "at"
-Trigger_mode = ["keyword","prefix","at"]
-# 是否开启群对话隔离，群里每个人对话都是隔离开的
-group_chat_isolation = false
-# 是否传递用户名给LLM格式为 "用户名：消息"
-enable_username = true
-# 是否允许私聊
-enable_private = false
-# 是否允许群聊
-enable_group = true
-# 最大保存的会话数量
-max_sessions = 1000
-# 默认回复列表
+[plugin_settings]
+trigger_words = ["小宝","qw"] # 触发词
+trigger_mode = ["keyword","prefix","at"] # 触发方式"prefix", "keyword", "at"
+group_chat_isolation = false # 是否开启群对话隔离，群里每个人对话都是隔离开的
+enable_username = true # 是否传递用户名给LLM格式为 "用户名：消息"
+enable_private = false # 是否允许私聊 
+enable_group = true  # 是否允许群聊
+max_sessions = 1000 # 最大保存的会话数量
+command_start = "/"  # 命令触发前缀，/chat model xxx  , /chat clear， /chat down
+superusers = "161840734"  # 超级用户的qq
 
-
+# 消息分段
 [chunk]
 enable = true
-words = ["||"]
-max_time = 10.0
-char_per_s = 5
+words = ["||"] # 分段关键词，需要在系统提示词中让LLM需要分段发送时候加入这个关键词
+max_time = 10.0 # 一段话和一段话之间的最大延迟
+char_per_s = 5 # 每秒几个字符，模拟真人打字
 
 [responses]
+# 空艾特回复
 empty_message_replies = [
     "叫冰哥又不说话?",
     "叫冰冰干嘛呢?",
     "到!",
-    "需要帮助吗?",
-    "有什么可以帮你的?",
 ]
+# 生成工具参数时候tokens超过max tokens报错
 token_limit_error = "太长了发不出来，换一个吧"  # max_tokens设置太小无法输出报错设置回复内容
+# 其他报错
 general_error = "卧槽，报错了，尝试自行修复中，聊聊别的吧！"  # 位置报错回复
+# 关机回复
+disabled_message = "你干嘛~哎哟~~已经关机了"

@@ -82,6 +82,16 @@ llm = get_llm()
 graph_builder = build_graph(plugin_config, llm)
 
 
+
+
+
+
+
+
+
+
+
+
 def chat_rule(event: Event) -> bool:
     """定义触发规则"""
     trigger_mode = plugin_config.plugin.trigger_mode
@@ -121,6 +131,14 @@ def remove_trigger_words(text: str, message: Message) -> str:
     
     return text
 
+def calculate_typing_delay(text: str) -> float:
+    """
+    计算模拟打字延迟
+    基于配置的每秒处理字符数计算延迟
+    """
+    delay = len(text) / plugin_config.plugin.chunk.char_per_s
+    return min(delay, plugin_config.plugin.chunk.max_time)
+
 async def send_in_chunks(response: str) -> bool:
     """
     分段发送逻辑, 返回True表示已完成发送, 否则False
@@ -156,7 +174,7 @@ async def handle_chat(
     # 检查群聊/私聊开关，判断消息对象是否是群聊/私聊的实例
     if (isinstance(event, GroupMessageEvent) and not plugin_config.plugin.enable_group) or \
        (not isinstance(event, GroupMessageEvent) and not plugin_config.plugin.enable_private):
-        await chat_handler.finish(plugin_config.plugin.disabled_message)
+        await chat_handler.finish(plugin_config.responses.disabled_message)
         
     # 获取用户名
     user_name = ""  # 初始化为空字符串
@@ -314,63 +332,19 @@ async def handle_chat(
         else:
             await chat_handler.finish(Message(response))
 
-def calculate_typing_delay(text: str) -> float:
-    """
-    计算模拟打字延迟
-    基于配置的每秒处理字符数计算延迟
-    """
-    delay = len(text) / plugin_config.plugin.chunk.char_per_s
-    return min(delay, plugin_config.plugin.chunk.max_time)
-
-group_chat_isolation = on_command(
-    "chat group", 
-    priority=5, 
-    block=True, 
-    permission=SUPERUSER,
-)
-
-@group_chat_isolation.handle()
-async def handle_group_chat_isolation(args: Message = CommandArg(), event: Event = None):
-    global plugin_config, sessions
-    
-    # 切换群聊会话隔离
-    isolation_str = args.extract_plain_text().strip().lower()
-    if not isolation_str:
-        current_group = plugin_config.plugin.group_chat_isolation
-        await group_chat_isolation.finish(f"当前群聊会话隔离: {current_group}")
-    
-    if isolation_str == "true":
-        plugin_config.plugin.group_chat_isolation = True
-    elif isolation_str == "false":
-        plugin_config.plugin.group_chat_isolation = False
-    else:
-        await group_chat_isolation.finish("请输入 true 或 false")
-
-    # 清理对应会话
-    keys_to_remove = []
-    if isinstance(event, GroupMessageEvent):
-        prefix = f"group_{event.group_id}"
-        if plugin_config.plugin.group_chat_isolation:
-            keys_to_remove = [key for key in sessions if key.startswith(f"{prefix}_")]
-        else:
-            keys_to_remove = [key for key in sessions if key == prefix]
-    else:
-        keys_to_remove = [key for key in sessions if key.startswith("private_")]
-
-    async with sessions_lock:
-        for key in keys_to_remove:
-            del sessions[key]
-
-
-    await group_chat_isolation.finish(
-        f"已{'禁用' if not plugin_config.plugin.group_chat_isolation else '启用'}群聊会话隔离，已清理对应会话"
-    )
 
 
 
 
 
-# 模型切换和清理历史会话
+
+
+
+
+
+
+
+# cmd
 chat_command = on_command(
     "chat",
     priority=5,
@@ -379,8 +353,8 @@ chat_command = on_command(
 )
 
 @chat_command.handle()
-async def handle_chat_command(args: Message = CommandArg()):
-    """处理 chat model 和 chat clear 命令"""
+async def handle_chat_command(args: Message = CommandArg(), event: Event = None):
+    """处理 chat model、chat clear、chat group 等命令"""
     global llm, graph_builder, sessions, plugin_config
 
     command_args = args.extract_plain_text().strip().split(maxsplit=1)
@@ -388,7 +362,11 @@ async def handle_chat_command(args: Message = CommandArg()):
         await chat_command.finish(
             """请输入有效的命令：
             'chat model <模型名字>' 切换模型 
-            'chat clear' 清理会话"""
+            'chat clear' 清理会话
+            'chat group <true/false>' 切换群聊会话隔离
+            'chat down' 关闭对话功能
+            'chat up' 开启对话功能
+            'chat chunk <true/false>' 切换分开发送功能"""
             )
     command = command_args[0].lower()
     if command == "model":
@@ -417,6 +395,38 @@ async def handle_chat_command(args: Message = CommandArg()):
             sessions.clear()
         await chat_command.finish("已清理所有历史会话。")
     
+    elif command == "group":
+        # 处理群聊会话隔离设置
+        if len(command_args) < 2:
+            current_group = plugin_config.plugin.group_chat_isolation
+            await chat_command.finish(f"当前群聊会话隔离: {current_group}")
+        
+        isolation_str = command_args[1].strip().lower()
+        if isolation_str == "true":
+            plugin_config.plugin.group_chat_isolation = True
+        elif isolation_str == "false":
+            plugin_config.plugin.group_chat_isolation = False
+        else:
+            await chat_command.finish("请输入 true 或 false")
+
+        # 清理对应会话
+        keys_to_remove = []
+        if isinstance(event, GroupMessageEvent):
+            prefix = f"group_{event.group_id}"
+            if plugin_config.plugin.group_chat_isolation:
+                keys_to_remove = [key for key in sessions if key.startswith(f"{prefix}_")]
+            else:
+                keys_to_remove = [key for key in sessions if key == prefix]
+        else:
+            keys_to_remove = [key for key in sessions if key.startswith("private_")]
+
+        async with sessions_lock:
+            for key in keys_to_remove:
+                del sessions[key]
+
+        await chat_command.finish(
+            f"已{'禁用' if not plugin_config.plugin.group_chat_isolation else '启用'}群聊会话隔离，已清理对应会话"
+        )
     elif command == "down":
         plugin_config.plugin.enable_private = False
         plugin_config.plugin.enable_group = False
@@ -438,4 +448,4 @@ async def handle_chat_command(args: Message = CommandArg()):
         else:
             await chat_command.finish("请输入 true 或 false")
     else:
-        await chat_command.finish("无效的命令，请使用 'chat model <模型名字>' 或 'chat clear'.")
+        await chat_command.finish("无效的命令，请使用 'chat model <模型名字>'、'chat clear' 或 'chat group <true/false>'。")

@@ -8,9 +8,9 @@ min_length = config.get('jina', {}).get('min_length', 10)
 
 @tool
 def jina_reader(url: str):
-    """获取URL内容
+    """Get URL Content
     Args:
-        url: 需要获取内容的URL
+        url: The URL whose content needs to be fetched / The URL to fetch content from / The URL from which to retrieve content
     """
 
     url = f'https://r.jina.ai/{url}'
@@ -30,7 +30,7 @@ def jina_reader(url: str):
         truncated_lines = filtered_lines[:top_n]
         result = '\n'.join(truncated_lines)
 
-        return result
+        return f"tool result: {result}"
     except requests.exceptions.Timeout:
         return "内容过多，返回失败"
     except requests.exceptions.RequestException:

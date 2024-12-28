@@ -8,9 +8,9 @@ min_length = config.get('jina', {}).get('min_length', 10)
 
 @tool
 def jina_fact_checking(query: str):
-    """待查询或确认的事实，例如“OpenAI 最新模型 o1-pro 的订阅价格是多少？”
+    """Facts to be queried or confirmed, such as "What is the subscription price for OpenAI's latest model, o1-pro?"
     Args:
-        query: 要查询的内容
+        query: The content to be queried (inquired/looked up/searched/checked)
     """
     url = f'https://g.jina.ai/{query}'
     headers = {

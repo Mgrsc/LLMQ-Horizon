@@ -8,9 +8,9 @@ min_length = config.get('jina', {}).get('min_length', 10)
 
 @tool
 def jina_search(query: str):
-    """在搜索引擎中查询
+    """Query in the search engine
     Args:
-        query: 要查询的内容
+        query: The content to query/search for/look up/inquire about
     """
     url = f'https://s.jina.ai/{query}'
     headers = {
@@ -29,7 +29,7 @@ def jina_search(query: str):
         truncated_lines = filtered_lines[:top_n]
         result = '\n'.join(truncated_lines)
 
-        return result
+        return f"tool result: {result}"
     except requests.exceptions.Timeout:
         return "搜索超时"
     except requests.exceptions.RequestException:

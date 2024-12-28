@@ -23,6 +23,8 @@ submit_fields = "stdout,stderr,compile_output,message,exit_code,exit_signal,stat
 
 _language_cache = None
 
+MAX_OUTPUT_LENGTH = 300  # 限制输出长度为1000字符
+
 def _fetch_languages_from_api_():
     """
     从 API 获取数据并更新缓存文件
@@ -251,9 +253,13 @@ def format_submission_result(result):
     for key in ["stdout", "stderr", "compile_output", "source_code", "message"]:
         if key in result and result[key]:
             try:
-                # 移除 base64 编码字符串中的换行符
                 cleaned_base64_string = result[key].replace('\r\n', '').replace('\n', '').replace('\r','')
-                formatted_result[key] = base64.b64decode(cleaned_base64_string).decode("utf-8")
+                decoded_text = base64.b64decode(cleaned_base64_string).decode("utf-8")
+                # 对stdout进行长度限制
+                if key == "stdout" and len(decoded_text) > MAX_OUTPUT_LENGTH:
+                    formatted_result[key] = decoded_text[:MAX_OUTPUT_LENGTH] + "..."
+                else:
+                    formatted_result[key] = decoded_text
             except Exception as e:
                 formatted_result[key] = f"Decode error: {e}"
         else:
@@ -278,7 +284,23 @@ def format_submission_result(result):
     if "status" in formatted_result:
         formatted_result.pop("status")
 
-    return formatted_result
+    # 清理结果，移除空值
+    cleaned_result = {}
+    for key, value in formatted_result.items():
+        if value is None:
+            continue
+        if isinstance(value, str) and not value.strip():
+            continue
+        if value == 0:
+            cleaned_result[key] = value
+            continue
+        if value:
+            cleaned_result[key] = value
+
+    if 'language' in cleaned_result and isinstance(cleaned_result['language'], dict):
+        cleaned_result['language'] = cleaned_result['language'].get('name', '')
+
+    return cleaned_result
 
 
 def base64_code(source_code, stdin=None):
@@ -304,11 +326,12 @@ def base64_code(source_code, stdin=None):
 
 @tool
 def code_runner(source_code: str, language: str, stdin: str = None):
-    """运行代码并返回详细的运行数据和结果。
+    """Run the code and return detailed runtime data and results.
+
     Args:
-        source_code: 格式正确的源代码
-        language: 编程语言.  可选：python3,python2,Assembly,Bash,C,C++,Clojure,C#,COBOL,Common Lisp,D,Elixir,F#,Fortran,Go,Groovy,Haskell,Java,JavaScript,Kotlin,Lua,OCaml,Octave,Pascal,Perl,PHP,Plain Text,Python,Python2,R,Ruby,Rust,Scala,SQL,Swift,TypeScript,Visual Basic.Net
-        stdin: 需要运行程序的标准输入，可选，默认为 None
+        source_code: Properly formatted source code
+        language: Programming language. Optional: python3, python2, Assembly, Bash, C, C++, Clojure, C#, COBOL, Common Lisp, D, Elixir, F#, Fortran, Go, Groovy, Haskell, Java, JavaScript, Kotlin, Lua, OCaml, Octave, Pascal, Perl, PHP, Plain Text, Python, Python2, R, Ruby, Rust, Scala, SQL, Swift, TypeScript, Visual Basic .Net
+        stdin: Standard input required to run the program, optional, defaults to None
     """
     language_id = _find_best_lang_match_(language)
     if language_id is None:
@@ -319,7 +342,7 @@ def code_runner(source_code: str, language: str, stdin: str = None):
     base64_stdin = base64_result.get("stdin")
     result = submit_code(base64_source_code, language_id, base64_stdin)
     formatted_result = format_submission_result(result)
-    return formatted_result
+    return f"Tool Response: {formatted_result}"
 
 
 tools = [code_runner]

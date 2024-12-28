@@ -14,10 +14,11 @@ client = OpenAI(
 
 @tool
 def analyze_image(query: str, image_input: str) -> str:
-    """根据query要求获取并返回图像中的内容和信息,也可以对图片进行分析
+    """Get and return the content and information in the image according to the query requirements.  It can also analyze the image.
+
     Args:
-        query: 要获取的图片信息。 e.g., "图中有什么" "详细描述图片" "图中圆球在哪" "图中有几个人" "根据图中星盘给出人生建议"
-        image_input: 图像来源，可以是图像 URL（http:// 或 https://）、Base64 编码的图像字符串或带有“image/”前缀的 Base64 图像字符串.
+        query: The image information to be retrieved. e.g., "What's in the image" "Describe the image in detail" "Where is the sphere in the image" "How many people are in the image" "Give life advice based on the astrolabe in the image"
+        image_input: The image source, which can be an image URL (http:// or https://), a Base64 encoded image string, or a Base64 image string with the "image/" prefix.
     """
 
     img_folder = img_config.get("img_folder")
@@ -69,6 +70,6 @@ def analyze_image(query: str, image_input: str) -> str:
             }
         ],
     )
-    return completion
+    return f"tool result: {completion}"
 
 tools = [analyze_image]

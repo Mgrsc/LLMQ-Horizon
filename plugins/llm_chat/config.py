@@ -4,6 +4,7 @@ from pathlib import Path
 import tomli
 
 class LLMConfig(BaseModel):
+    """LLM 配置"""
     model: str
     api_key: Optional[str]
     google_api_key: str = ""
@@ -23,22 +24,24 @@ class ChunkConfig(BaseModel):
     char_per_s: int = 5
 
 class PluginConfig(BaseModel):
+    """插件配置"""
     trigger_words: List[str] = []
     trigger_mode: List[str] = ["keyword", "at"]
     group_chat_isolation: bool = True
     enable_private: bool = True
-    disabled_message: str = "Bot已禁用"
     enable_group: bool = True
     max_sessions: int = Field(default=1000, gt=0)
     enable_username: bool = False
-    empty_message_replies: List[str] = ["你好", "在呢", "我在听"]
-    chunk: ChunkConfig = ChunkConfig()  # 使用嵌套配置
+    chunk: ChunkConfig = ChunkConfig()
+    command_start: str = "?"
+    superusers: str = ""
 
 class ResponseConfig(BaseModel):
     """回复消息配置"""
     empty_message_replies: List[str] = ["你好", "在呢", "我在听"]
     token_limit_error: str = "太长了发不出来，换一个吧"
     general_error: str = "卧槽，报错了，尝试自行修复中，聊聊别的吧！"
+    disabled_message: str = "Bot已禁用"  # 新增此行
 
 class Config(BaseModel):
     llm: LLMConfig
@@ -71,27 +74,28 @@ class Config(BaseModel):
             )
             
             plugin_config = PluginConfig(
-                trigger_words=toml_config["plugin"]["llm_chat"]["trigger_words"],
-                trigger_mode=toml_config["plugin"]["llm_chat"]["trigger_mode"],
-                group_chat_isolation=toml_config["plugin"]["llm_chat"]["group_chat_isolation"],
-                enable_private=toml_config["plugin"]["llm_chat"]["enable_private"],
-                disabled_message=toml_config["plugin"]["llm_chat"].get("disabled_message", "Bot已禁用"),
-                enable_group=toml_config["plugin"]["llm_chat"]["enable_group"],
-                max_sessions=toml_config["plugin"]["llm_chat"].get("max_sessions", 1000),
-                enable_username=toml_config["plugin"]["llm_chat"].get("enable_username", False),
-                empty_message_replies=toml_config["plugin"]["llm_chat"].get("empty_message_replies", ["你好", "在呢", "我在听"]),
-            chunk=ChunkConfig(
-                enable=toml_config.get("chunk", {}).get("enable", False),
-                words=toml_config.get("chunk", {}).get("words", ["||"]),
-                max_time=toml_config.get("chunk", {}).get("max_time", 5.0),
-                char_per_s=toml_config.get("chunk", {}).get("char_per_s", 5)
-            )
+                trigger_words=toml_config["plugin_settings"]["trigger_words"],
+                trigger_mode=toml_config["plugin_settings"]["trigger_mode"],
+                group_chat_isolation=toml_config["plugin_settings"]["group_chat_isolation"],
+                enable_private=toml_config["plugin_settings"]["enable_private"],
+                enable_group=toml_config["plugin_settings"]["enable_group"],
+                max_sessions=toml_config["plugin_settings"].get("max_sessions", 1000),
+                enable_username=toml_config["plugin_settings"].get("enable_username", False),
+                command_start=toml_config["plugin_settings"].get("command_start", "?"),
+                superusers=toml_config["plugin_settings"].get("superusers", ""),
+                chunk=ChunkConfig(
+                    enable=toml_config.get("chunk", {}).get("enable", False),
+                    words=toml_config.get("chunk", {}).get("words", ["||"]),
+                    max_time=toml_config.get("chunk", {}).get("max_time", 5.0),
+                    char_per_s=toml_config.get("chunk", {}).get("char_per_s", 5)
+                )
             )
             
             responses_config = ResponseConfig(
                 empty_message_replies=toml_config["responses"].get("empty_message_replies", ResponseConfig().empty_message_replies),
                 token_limit_error=toml_config["responses"].get("token_limit_error", ResponseConfig().token_limit_error),
-                general_error=toml_config["responses"].get("general_error", ResponseConfig().general_error)
+                general_error=toml_config["responses"].get("general_error", ResponseConfig().general_error),
+                disabled_message=toml_config["responses"].get("disabled_message", "Bot已禁用")
             )
             
             return cls(llm=llm_config, plugin=plugin_config, responses=responses_config)
