@@ -115,12 +115,13 @@ def chat_rule(event: Event) -> bool:
 chat_handler = on_message(rule=chat_rule, priority=10, block=True)
 
 def remove_trigger_words(text: str, message: Message) -> str:
-    """移除命令前缀(包括@和昵称)，保留关键词"""
-    # 删除所有@片段
-    text = str(message).strip()
+    """移除命令前缀(包括@和CQ码)，保留关键词"""
+    # 获取纯文本
+    text = ""
     for seg in message:
-        if seg.type == "at":
-            text = text.replace(str(seg), "").strip()
+        if seg.type == "text":
+            text += seg.data["text"]
+    text = text.strip()
     
     # 移除命令前缀
     if hasattr(plugin_config.plugin, 'trigger_words'):
@@ -191,17 +192,12 @@ async def handle_chat(
                 print(f"获取用户信息失败: {e}")
                 user_name = str(event.user_id)
     print(user_name)
+    # 获取主消息中的图片URL(不包含引用消息中的)
     image_urls = [
         seg.data["url"]
         for seg in message
         if seg.type == "image" and seg.data.get("url")
     ]
-    if event.reply:
-        image_urls.extend(
-            seg.data["url"]
-            for seg in event.reply.message
-            if seg.type == "image" and seg.data.get("url")
-        )
     
     # 提取视频链接
     video_urls = [
@@ -228,7 +224,7 @@ async def handle_chat(
             if seg.type == "audio" and seg.data.get("url")
         )
 
-    # 处理消息内容,移除触发词
+    # 处理消息内容,移除CQ码获取纯文本
     full_content = remove_trigger_words(plain_text, message)
     
     # 如果全是空白字符,使用配置中的随机回复
@@ -242,6 +238,27 @@ async def handle_chat(
         full_content += "\n视频URL：" + "\n".join(video_urls)
     if audio_urls:
         full_content += "\n音频URL：" + "\n".join(audio_urls)
+    
+    if event.reply:
+        # 从引用消息中提取图片URL和文本
+        reply_image_urls = [
+            seg.data["url"]
+            for seg in event.reply.message
+            if seg.type == "image" and seg.data.get("url")
+        ]
+        reference_text = str(event.reply.message)
+        
+        # 从引用文本中移除CQ码
+        for seg in event.reply.message:
+            if seg.type == "image":
+                reference_text = reference_text.replace(str(seg), "").strip()
+        
+        # 构建引用内容: 文本 + 图片URL
+        if reference_text or reply_image_urls:
+            reference_content = reference_text
+            if reply_image_urls:
+                reference_content += " 图片URL：" + "".join(reply_image_urls)
+            full_content += f"\n引用内容：{reference_content}"
     
     # 构建会话ID
     if isinstance(event, GroupMessageEvent):
