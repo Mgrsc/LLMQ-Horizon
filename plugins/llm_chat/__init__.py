@@ -170,10 +170,9 @@ async def handle_chat(
     # 提取纯文本
     plain_text: str = EventPlainText()
 ):
-    
     # 检查群聊/私聊开关，判断消息对象是否是群聊/私聊的实例
     if (isinstance(event, GroupMessageEvent) and not plugin_config.plugin.enable_group) or \
-       (not isinstance(event, GroupMessageEvent) and not plugin_config.plugin.enable_private):
+        (not isinstance(event, GroupMessageEvent) and not plugin_config.plugin.enable_private):
         await chat_handler.finish(plugin_config.responses.disabled_message)
         
     # 获取用户名
@@ -211,11 +210,23 @@ async def handle_chat(
         if seg.type == "video" and seg.data.get("url")
     ]
     if event.reply:
-       video_urls.extend(
+        video_urls.extend(
             seg.data["url"]
             for seg in event.reply.message
             if seg.type == "video" and seg.data.get("url")
-       )
+        )
+    # 提取MP3链接
+    audio_urls = [
+        seg.data["url"]
+        for seg in message
+        if seg.type == "audio" and seg.data.get("url")
+    ]
+    if event.reply:
+        audio_urls.extend(
+            seg.data["url"]
+            for seg in event.reply.message
+            if seg.type == "audio" and seg.data.get("url")
+        )
 
     # 处理消息内容,移除触发词
     full_content = remove_trigger_words(plain_text, message)
@@ -229,6 +240,8 @@ async def handle_chat(
         full_content += "\n图片URL：" + "\n".join(image_urls)
     if video_urls:
         full_content += "\n视频URL：" + "\n".join(video_urls)
+    if audio_urls:
+        full_content += "\n音频URL：" + "\n".join(audio_urls)
     
     # 构建会话ID
     if isinstance(event, GroupMessageEvent):
@@ -295,9 +308,11 @@ async def handle_chat(
             response = plugin_config.responses.token_limit_error
         else:
             response = plugin_config.responses.general_error
-    # 检查是否有图片或视频链接，并发送图片或视频或文本消息
+    # 检查是否有图片或视频链接或音频链接，并发送图片或视频或音频或文本消息
     image_match = re.search(r'https?://[^\s]+?\.(?:png|jpg|jpeg|gif|bmp|webp)', response, re.IGNORECASE)
     video_match = re.search(r'https?://[^\s]+?\.(?:mp4|avi|mov|mkv)', response, re.IGNORECASE)
+    audio_match = re.search(r'https?://[^\s]+?\.(?:mp3)', response, re.IGNORECASE)
+    
     if image_match:
         image_url = image_match.group(0)
         message_content = re.sub(r'!\[.*?\]\((.*?)\)', r'\1', response)
@@ -310,20 +325,33 @@ async def handle_chat(
         except MatcherException:
             raise
         except Exception as e :
-             await chat_handler.finish(Message(message_content) + MessageSegment.text(f" (未知错误： {e})"))
+            await chat_handler.finish(Message(message_content) + MessageSegment.text(f" (未知错误： {e})"))
     elif video_match:
         video_url = video_match.group(0)
         message_content = re.sub(r'!\[.*?\]\((.*?)\)', r'\1', response)
         message_content = re.sub(r'\[.*?\]\((.*?)\)', r'\1', message_content)
         message_content = message_content.replace(video_url, "").strip()
         try:
-            await chat_handler.finish(Message(message_content) + MessageSegment.video(video_url))
+             await chat_handler.finish(Message(message_content) + MessageSegment.video(video_url))
         except ActionFailed:
             await chat_handler.finish(Message(message_content) + MessageSegment.text(" (视频发送失败)"))
         except MatcherException:
             raise
         except Exception as e:
             await chat_handler.finish(Message(message_content) + MessageSegment.text(f" (未知错误： {e})"))
+    elif audio_match:
+        audio_url = audio_match.group(0)
+        message_content = re.sub(r'!\[.*?\]\((.*?)\)', r'\1', response)
+        message_content = re.sub(r'\[.*?\]\((.*?)\)', r'\1', message_content)
+        message_content = message_content.replace(audio_url, "").strip()
+        try:
+            await chat_handler.finish(Message(message_content) + MessageSegment.record(audio_url))
+        except ActionFailed:
+            await chat_handler.finish(Message(message_content) + MessageSegment.text(" (音频发送失败)"))
+        except MatcherException:
+            raise
+        except Exception as e:
+            await chat_handler.finish(Message(message_content) + MessageSegment.text(f" (音频发送失败：{e})"))
     else:
         if plugin_config.plugin.chunk.enable:
             if await send_in_chunks(response):
@@ -331,6 +359,7 @@ async def handle_chat(
             await chat_handler.finish(Message(response))
         else:
             await chat_handler.finish(Message(response))
+
 
 
 
