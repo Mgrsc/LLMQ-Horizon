@@ -311,7 +311,7 @@ async def handle_chat(
     # 检查是否有图片或视频链接或音频链接，并发送图片或视频或音频或文本消息
     image_match = re.search(r'https?://[^\s]+?\.(?:png|jpg|jpeg|gif|bmp|webp)', response, re.IGNORECASE)
     video_match = re.search(r'https?://[^\s]+?\.(?:mp4|avi|mov|mkv)', response, re.IGNORECASE)
-    audio_match = re.search(r'https?://[^\s]+?\.(?:mp3)', response, re.IGNORECASE)
+    audio_match = re.search(r'https?://[^\s]+?\.(?:mp3|wav|ogg|aac|flac)', response, re.IGNORECASE)
     
     if image_match:
         image_url = image_match.group(0)
