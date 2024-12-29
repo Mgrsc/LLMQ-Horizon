@@ -172,7 +172,7 @@ async def handle_chat(
 ):
     # 检查群聊/私聊开关，判断消息对象是否是群聊/私聊的实例
     if (isinstance(event, GroupMessageEvent) and not plugin_config.plugin.enable_group) or \
-        (not isinstance(event, GroupMessageEvent) and not plugin_config.plugin.enable_private):
+       (not isinstance(event, GroupMessageEvent) and not plugin_config.plugin.enable_private):
         await chat_handler.finish(plugin_config.responses.disabled_message)
         
     # 获取用户名
@@ -210,11 +210,11 @@ async def handle_chat(
         if seg.type == "video" and seg.data.get("url")
     ]
     if event.reply:
-        video_urls.extend(
+       video_urls.extend(
             seg.data["url"]
             for seg in event.reply.message
             if seg.type == "video" and seg.data.get("url")
-        )
+       )
     # 提取MP3链接
     audio_urls = [
         seg.data["url"]
@@ -332,7 +332,7 @@ async def handle_chat(
         message_content = re.sub(r'\[.*?\]\((.*?)\)', r'\1', message_content)
         message_content = message_content.replace(video_url, "").strip()
         try:
-             await chat_handler.finish(Message(message_content) + MessageSegment.video(video_url))
+            await chat_handler.finish(Message(message_content) + MessageSegment.video(video_url))
         except ActionFailed:
             await chat_handler.finish(Message(message_content) + MessageSegment.text(" (视频发送失败)"))
         except MatcherException:
