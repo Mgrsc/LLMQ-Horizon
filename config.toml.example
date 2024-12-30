@@ -25,7 +25,6 @@ group_chat_isolation = false # 是否开启群对话隔离，群里每个人对�
 enable_username = true # 是否传递用户名给LLM格式为 "用户名：消息"
 enable_private = false # 是否允许私聊 
 enable_group = true  # 是否允许群聊
-max_sessions = 1000 # 最大保存的会话数量
 command_start = "/"  # 命令触发前缀，/chat model xxx  , /chat clear， /chat down
 superusers = "161840734"  # 超级用户的qq
 

@@ -30,7 +30,6 @@ class PluginConfig(BaseModel):
     group_chat_isolation: bool = True
     enable_private: bool = True
     enable_group: bool = True
-    max_sessions: int = Field(default=1000, gt=0)
     enable_username: bool = False
     chunk: ChunkConfig = ChunkConfig()
     command_start: str = "?"
@@ -79,7 +78,6 @@ class Config(BaseModel):
                 group_chat_isolation=toml_config["plugin_settings"]["group_chat_isolation"],
                 enable_private=toml_config["plugin_settings"]["enable_private"],
                 enable_group=toml_config["plugin_settings"]["enable_group"],
-                max_sessions=toml_config["plugin_settings"].get("max_sessions", 1000),
                 enable_username=toml_config["plugin_settings"].get("enable_username", False),
                 command_start=toml_config["plugin_settings"].get("command_start", "?"),
                 superusers=toml_config["plugin_settings"].get("superusers", ""),

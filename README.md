@@ -74,7 +74,6 @@ enable_username = true
 enable_private = true
 # 是否允许群聊
 enable_group = true
-max_sessions = 1000
 # 默认回复列表，空艾特，空触发回复
 empty_message_replies = [
     "说",
