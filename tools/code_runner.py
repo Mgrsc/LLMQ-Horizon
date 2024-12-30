@@ -329,7 +329,7 @@ def code_runner(source_code: str, language: str, stdin: str = None):
     """Run the code and return detailed runtime data and results.
 
     Args:
-        source_code: Properly formatted source code
+        source_code: Only used the standard library/core library, and the source code is correctly formatted.
         language: Programming language. Optional: python3, python2, Assembly, Bash, C, C++, Clojure, C#, COBOL, Common Lisp, D, Elixir, F#, Fortran, Go, Groovy, Haskell, Java, JavaScript, Kotlin, Lua, OCaml, Octave, Pascal, Perl, PHP, Plain Text, Python, Python2, R, Ruby, Rust, Scala, SQL, Swift, TypeScript, Visual Basic .Net
         stdin: Standard input required to run the program, optional, defaults to None
     """
