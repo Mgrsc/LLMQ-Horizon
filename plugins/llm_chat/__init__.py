@@ -408,8 +408,8 @@ async def handle_chat_command(args: Message = CommandArg(), event: Event = None)
             await chat_command.finish(f"当前模型: {current_model}")
         model_name = command_args[1]
         try:
-            llm = get_llm(model_name)
-            graph_builder = build_graph(plugin_config, llm)
+            llm = await get_llm(model_name)
+            graph_builder = await build_graph(plugin_config, llm)
             async with sessions_lock:
                 sessions.clear()
             await chat_command.finish(f"已切换到模型: {model_name}")
