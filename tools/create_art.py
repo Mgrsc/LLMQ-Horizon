@@ -331,7 +331,7 @@ def create_art(prompt: str, image_size: str = "square", style: str = "any", mode
         prompt: Description of the content to be drawn.
         image_size: Image size. Available values: "square", "portrait", "landscape"
         style: Image style for rfv3. Available values: "any", "realistic_image", "digital_illustration"
-        model: Model name. Available values: "rfv3", "cv3p", "sdxlx1"
+        model: Model name. Available values:  "sdxlx1", "cv3p","rfv3"
     """
     try:
         size_enum = ImageSize(image_size)

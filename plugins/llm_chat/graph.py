@@ -37,7 +37,7 @@ class MyOpenAI(ChatOpenAI):
 
 def async_singleton(cls):
     _instances = {}
-    _locks = {}  # 为每个类实例添加一个锁
+    _locks = {}
 
     @wraps(cls)
     async def wrapper(*args, **kwargs):
@@ -113,8 +113,10 @@ async def build_graph(config: Config, llm):
         if config.llm.system_prompt:
             messages = [SystemMessage(content=config.llm.system_prompt)] + messages
         trimmed_messages = trimmer.invoke(messages)
-        print("-" * 50)
-        print(format_messages_for_print(trimmed_messages))
+        if not trimmed_messages:
+            return {"messages": []}
+        # print("-" * 50)
+        # print(format_messages_for_print(trimmed_messages))
         response = await llm_with_tools.ainvoke(trimmed_messages) 
         # print(f"chatbot: {response}")
         return {"messages": [response]}

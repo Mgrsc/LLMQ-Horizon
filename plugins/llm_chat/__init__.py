@@ -6,7 +6,7 @@ from nonebot.adapters.onebot.v11 import (
     MessageSegment,
 )
 from nonebot.permission import SUPERUSER
-from nonebot import on_message, on_command
+from nonebot import on_message, on_command, get_bot
 from nonebot.params import CommandArg, EventMessage, EventPlainText
 from nonebot.exception import MatcherException
 from nonebot.plugin import PluginMetadata
@@ -14,7 +14,7 @@ from nonebot.adapters.onebot.v11.exception import ActionFailed
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 from langgraph.checkpoint.memory import MemorySaver
 from .graph import build_graph, get_llm, format_messages_for_print
-from typing import Dict
+from typing import List, Dict, Tuple
 from datetime import datetime
 from random import choice
 from .config import Config
@@ -65,12 +65,12 @@ async def get_or_create_session(thread_id: str) -> Session:
 
 
 # 初始化模型和对话图
-async def initialize_resources():
+async def _initialize_resources():
     llm = await get_llm()
     graph_builder = await build_graph(plugin_config, llm)
     return llm, graph_builder
 
-llm, graph_builder = asyncio.run(initialize_resources())
+llm, graph_builder = asyncio.run(_initialize_resources())
 
 
 
@@ -81,9 +81,77 @@ llm, graph_builder = asyncio.run(initialize_resources())
 
 
 
+def _remove_trigger_words(text: str, message: Message) -> str:
+    """移除命令前缀(包括@和CQ码)，保留关键词"""
+    # 获取纯文本
+    text = ""
+    for seg in message:
+        if seg.type == "text":
+            text += seg.data["text"]
+    text = text.strip()
+    
+    # 移除命令前缀
+    if hasattr(plugin_config.plugin, 'trigger_words'):
+        for cmd in plugin_config.plugin.trigger_words:
+            if text.startswith(cmd):
+                text = text[len(cmd):].strip()
+                break
+    
+    return text
+
+def _calculate_typing_delay(text: str) -> float:
+    """
+    计算模拟打字延迟
+    基于配置的每秒处理字符数计算延迟
+    """
+    delay = len(text) / plugin_config.plugin.chunk.char_per_s
+    return min(delay, plugin_config.plugin.chunk.max_time)
+
+async def _send_in_chunks(response: str) -> bool:
+    """
+    分段发送逻辑, 返回True表示已完成发送, 否则False
+    """
+    for sep in plugin_config.plugin.chunk.words:
+        if sep in response:
+            chunks = response.split(sep)
+            for i, chunk in enumerate(chunks):
+                chunk = chunk.strip()
+                if not chunk:
+                    continue
+                for word in plugin_config.plugin.chunk.words:
+                    chunk = chunk.replace(word, "")
+                chunk = chunk.strip()
+                if i == len(chunks) - 1:
+                    await chat_handler.finish(Message(chunk))
+                else:
+                    await chat_handler.send(Message(chunk))
+                    await asyncio.sleep(_calculate_typing_delay(chunk))
+            return True
+    return False
+
+async def _extract_media_urls(message: Message, reply_message: Message = None) -> Dict[str, List[str]]:
+    media_urls = {"image": [], "video": [], "audio": []}
+
+    def extract_from_segments(segments: Message, media_type: str):
+        return [
+            seg.data["url"]
+            for seg in segments
+            if seg.type == media_type and seg.data.get("url")
+        ]
+
+    media_urls["image"].extend(extract_from_segments(message, "image"))
+    media_urls["video"].extend(extract_from_segments(message, "video"))
+    media_urls["audio"].extend(extract_from_segments(message, "audio"))
+
+    if reply_message:
+        media_urls["image"].extend(extract_from_segments(reply_message, "image"))
+        media_urls["video"].extend(extract_from_segments(reply_message, "video"))
+        media_urls["audio"].extend(extract_from_segments(reply_message, "audio"))
+
+    return media_urls
 
 
-def chat_rule(event: Event) -> bool:
+def _chat_rule(event: Event) -> bool:
     """定义触发规则"""
     trigger_mode = plugin_config.plugin.trigger_mode
     trigger_words = plugin_config.plugin.trigger_words
@@ -103,55 +171,7 @@ def chat_rule(event: Event) -> bool:
         return event.is_tome()
     return False
 
-chat_handler = on_message(rule=chat_rule, priority=10, block=True)
-
-def remove_trigger_words(text: str, message: Message) -> str:
-    """移除命令前缀(包括@和CQ码)，保留关键词"""
-    # 获取纯文本
-    text = ""
-    for seg in message:
-        if seg.type == "text":
-            text += seg.data["text"]
-    text = text.strip()
-    
-    # 移除命令前缀
-    if hasattr(plugin_config.plugin, 'trigger_words'):
-        for cmd in plugin_config.plugin.trigger_words:
-            if text.startswith(cmd):
-                text = text[len(cmd):].strip()
-                break
-    
-    return text
-
-def calculate_typing_delay(text: str) -> float:
-    """
-    计算模拟打字延迟
-    基于配置的每秒处理字符数计算延迟
-    """
-    delay = len(text) / plugin_config.plugin.chunk.char_per_s
-    return min(delay, plugin_config.plugin.chunk.max_time)
-
-async def send_in_chunks(response: str) -> bool:
-    """
-    分段发送逻辑, 返回True表示已完成发送, 否则False
-    """
-    for sep in plugin_config.plugin.chunk.words:
-        if sep in response:
-            chunks = response.split(sep)
-            for i, chunk in enumerate(chunks):
-                chunk = chunk.strip()
-                if not chunk:
-                    continue
-                for word in plugin_config.plugin.chunk.words:
-                    chunk = chunk.replace(word, "")
-                chunk = chunk.strip()
-                if i == len(chunks) - 1:
-                    await chat_handler.finish(Message(chunk))
-                else:
-                    await chat_handler.send(Message(chunk))
-                    await asyncio.sleep(calculate_typing_delay(chunk))
-            return True
-    return False
+chat_handler = on_message(rule=_chat_rule, priority=10, block=True)
 
 @chat_handler.handle()
 async def handle_chat(
@@ -173,11 +193,11 @@ async def handle_chat(
         user_name = (
             event.sender.nickname if event.sender.nickname else event.sender.card
         )
-        
+        bot = get_bot()
         if not user_name:
             try:
                 if isinstance(event, GroupMessageEvent):
-                    user_info = await event.bot.get_group_member_info(
+                    user_info = await bot.get_group_member_info(
                         group_id=event.group_id, user_id=event.user_id
                     )
                     user_name = (
@@ -186,79 +206,42 @@ async def handle_chat(
                         or str(event.user_id)
                     )
                 else:
-                    user_info = await event.bot.get_stranger_info(user_id=event.user_id)
+                    user_info = await bot.get_stranger_info(user_id=event.user_id)
                     user_name = user_info.get("nickname") or str(event.user_id)
             except Exception as e:
                 print(f"获取用户信息失败: {e}")
                 user_name = str(event.user_id)
     print(user_name)
-    # 获取主消息中的图片URL(不包含引用消息中的)
-    image_urls = [
-        seg.data["url"]
-        for seg in message
-        if seg.type == "image" and seg.data.get("url")
-    ]
     
-    # 提取视频链接
-    video_urls = [
-        seg.data["url"]
-        for seg in message
-        if seg.type == "video" and seg.data.get("url")
-    ]
-    if event.reply:
-        video_urls.extend(
-             seg.data["url"]
-             for seg in event.reply.message
-             if seg.type == "video" and seg.data.get("url")
-        )
-    # 提取MP3链接
-    audio_urls = [
-        seg.data["url"]
-        for seg in message
-        if seg.type == "audio" and seg.data.get("url")
-    ]
-    if event.reply:
-        audio_urls.extend(
-            seg.data["url"]
-            for seg in event.reply.message
-            if seg.type == "audio" and seg.data.get("url")
-        )
+    # 提取媒体链接
+    media_urls = await _extract_media_urls(
+        message, event.reply.message if event.reply else None
+    )
 
     # 处理消息内容,移除CQ码获取纯文本
-    full_content = remove_trigger_words(plain_text, message)
+    full_content = _remove_trigger_words(plain_text, message)
     
     # 如果全是空白字符,使用配置中的随机回复
     if not full_content.strip():
         reply = choice(plugin_config.responses.empty_message_replies)
         await chat_handler.finish(Message(reply))
     
-    if image_urls:
-        full_content += "\n图片URL：" + "\n".join(image_urls)
-    if video_urls:
-        full_content += "\n视频URL：" + "\n".join(video_urls)
-    if audio_urls:
-        full_content += "\n音频URL：" + "\n".join(audio_urls)
+    if media_urls["image"]:
+        full_content += "\n图片URL：" + "\n".join(media_urls["image"])
+    if media_urls["video"]:
+        full_content += "\n视频URL：" + "\n".join(media_urls["video"])
+    if media_urls["audio"]:
+        full_content += "\n音频URL：" + "\n".join(media_urls["audio"])
     
     # --- 引用消息处理部分 (直接拼接策略) ---
     if event.reply:
-        # 从引用消息中提取图片URL和文本
-        reply_image_urls = [
-            seg.data["url"]
-            for seg in event.reply.message
-            if seg.type == "image" and seg.data.get("url")
-        ]
         reference_text = str(event.reply.message)
-        
         # 从引用文本中移除CQ码
         for seg in event.reply.message:
-            if seg.type == "image":
+            if seg.type == "image" or seg.type == "audio" or seg.type == "video":
                 reference_text = reference_text.replace(str(seg), "").strip()
-
-        if reference_text or reply_image_urls:
-            reference_content = f"「引用其他消息：{reference_text}"
-            if reply_image_urls:
-                reference_content += " 图片URL：" + "".join(reply_image_urls)
-            reference_content += "」"
+        if reference_text:
+            reference_content = f"「引用其他消息：{reference_text}」"
             full_content = f"{reference_content}\n{full_content}"
     # --- 引用消息处理结束 ---
     
@@ -272,6 +255,7 @@ async def handle_chat(
         thread_id = f"private_{event.user_id}"
     print(f"Current thread: {thread_id}")
     session = await get_or_create_session(thread_id)
+    
     # 如果当前会话没有图，则创建一个
     if session.graph is None:
         session.graph = graph_builder.compile(checkpointer=session.memory)
@@ -370,7 +354,7 @@ async def handle_chat(
             await chat_handler.finish(Message(message_content) + MessageSegment.text(f" (音频发送失败：{e})"))
     else:
         if plugin_config.plugin.chunk.enable:
-            if await send_in_chunks(response):
+            if await _send_in_chunks(response):
                 return
             await chat_handler.finish(Message(response))
         else:
