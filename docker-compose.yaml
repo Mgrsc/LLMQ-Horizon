@@ -10,6 +10,7 @@ services:
     volumes:
       - ./napcat/QQ:/app/.config/QQ
       - ./napcat/config:/app/napcat/config
+      - ./temp_server:/app/temp_server
     depends_on:
       - llmq
 
