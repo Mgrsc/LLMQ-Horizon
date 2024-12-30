@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+      - test
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -24,14 +26,21 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
+      - name: Set Docker tags
+        id: set-tags
+        run: |
+          if [ ${{ github.ref }} = 'refs/heads/main' ]; then
+            echo "tags=bitfennec/llmq-horizon:latest,bitfennec/llmq-horizon:${{ steps.timestamp.outputs.timestamp }}" >> $GITHUB_OUTPUT
+          else
+            echo "tags=bitfennec/llmq-test:latest" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          tags: |
-            bitfennec/llmq-horizon:latest
-            bitfennec/llmq-horizon:${{ steps.timestamp.outputs.timestamp }}
+          tags: ${{ steps.set-tags.outputs.tags }}
           platforms: linux/amd64
           cache-from: type=registry,ref=bitfennec/llmq-horizon:buildcache
           cache-to: type=registry,ref=bitfennec/llmq-horizon:buildcache,mode=max

@@ -289,7 +289,7 @@ class CloudflareProvider(ModelProvider):
                 save_path.write_bytes(resp.content)
                 print(f"SDXL图像已保存到 {save_path}")
 
-                return f"http://127.0.0.1:5000/images/{filename}"
+                return f"file://{temp_server_dir}/{filename}"
             else:
                 error_data = resp.json()
                 return f"生成图片失败: {error_data}"

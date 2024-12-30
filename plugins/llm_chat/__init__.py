@@ -63,23 +63,14 @@ async def get_or_create_session(thread_id: str) -> Session:
         session.last_accessed = datetime.now()
     return session
 
-async def cleanup_old_sessions():
-    """异步清理过期的会话"""
-    async with sessions_lock:
-        if len(sessions) > plugin_config.plugin.max_sessions:
-            # 按最后访问时间排序，删除最旧的会话
-            sorted_sessions = sorted(
-                sessions.items(),
-                key=lambda x: x[1].last_accessed,
-                reverse=True
-            )
-            # 保留配置指定数量的会话
-            for thread_id, _ in sorted_sessions[plugin_config.plugin.max_sessions:]:
-                del sessions[thread_id]
 
 # 初始化模型和对话图
-llm = get_llm()
-graph_builder = build_graph(plugin_config, llm)
+async def initialize_resources():
+    llm = await get_llm()
+    graph_builder = await build_graph(plugin_config, llm)
+    return llm, graph_builder
+
+llm, graph_builder = asyncio.run(initialize_resources())
 
 
 
@@ -169,7 +160,7 @@ async def handle_chat(
     # 提取各种消息段
     message: Message = EventMessage(),
     # 提取纯文本
-    plain_text: str = EventPlainText()
+    plain_text: str = EventPlainText(),
 ):
     # 检查群聊/私聊开关，判断消息对象是否是群聊/私聊的实例
     if (isinstance(event, GroupMessageEvent) and not plugin_config.plugin.enable_group) or \
@@ -179,12 +170,21 @@ async def handle_chat(
     # 获取用户名
     user_name = ""  # 初始化为空字符串
     if plugin_config.plugin.enable_username:
-        user_name = event.sender.nickname if event.sender.nickname else event.sender.card
+        user_name = (
+            event.sender.nickname if event.sender.nickname else event.sender.card
+        )
+        
         if not user_name:
             try:
                 if isinstance(event, GroupMessageEvent):
-                    user_info = await event.bot.get_group_member_info(group_id=event.group_id, user_id=event.user_id)
-                    user_name = user_info.get("nickname") or user_info.get("card") or str(event.user_id)
+                    user_info = await event.bot.get_group_member_info(
+                        group_id=event.group_id, user_id=event.user_id
+                    )
+                    user_name = (
+                        user_info.get("nickname")
+                        or user_info.get("card")
+                        or str(event.user_id)
+                    )
                 else:
                     user_info = await event.bot.get_stranger_info(user_id=event.user_id)
                     user_name = user_info.get("nickname") or str(event.user_id)
@@ -206,11 +206,11 @@ async def handle_chat(
         if seg.type == "video" and seg.data.get("url")
     ]
     if event.reply:
-       video_urls.extend(
-            seg.data["url"]
-            for seg in event.reply.message
-            if seg.type == "video" and seg.data.get("url")
-       )
+        video_urls.extend(
+             seg.data["url"]
+             for seg in event.reply.message
+             if seg.type == "video" and seg.data.get("url")
+        )
     # 提取MP3链接
     audio_urls = [
         seg.data["url"]
@@ -239,6 +239,7 @@ async def handle_chat(
     if audio_urls:
         full_content += "\n音频URL：" + "\n".join(audio_urls)
     
+    # --- 引用消息处理部分 (直接拼接策略) ---
     if event.reply:
         # 从引用消息中提取图片URL和文本
         reply_image_urls = [
@@ -252,13 +253,14 @@ async def handle_chat(
         for seg in event.reply.message:
             if seg.type == "image":
                 reference_text = reference_text.replace(str(seg), "").strip()
-        
-        # 构建引用内容: 文本 + 图片URL
+
         if reference_text or reply_image_urls:
-            reference_content = reference_text
+            reference_content = f"「引用其他消息：{reference_text}"
             if reply_image_urls:
                 reference_content += " 图片URL：" + "".join(reply_image_urls)
-            full_content += f"\n引用内容：{reference_content}"
+            reference_content += "」"
+            full_content = f"{reference_content}\n{full_content}"
+    # --- 引用消息处理结束 ---
     
     # 构建会话ID
     if isinstance(event, GroupMessageEvent):
@@ -269,7 +271,6 @@ async def handle_chat(
     else:
         thread_id = f"private_{event.user_id}"
     print(f"Current thread: {thread_id}")
-    await cleanup_old_sessions()
     session = await get_or_create_session(thread_id)
     # 如果当前会话没有图，则创建一个
     if session.graph is None:
@@ -280,10 +281,8 @@ async def handle_chat(
             message_content = f"{user_name}: {full_content}"
         else:
             message_content = full_content
-        loop = asyncio.get_running_loop()
-        result = await loop.run_in_executor(
-            None,
-            session.graph.invoke,
+
+        result = await session.graph.ainvoke(
             {"messages": [HumanMessage(content=message_content)]},
             {"configurable": {"thread_id": thread_id}},
         )
@@ -326,7 +325,7 @@ async def handle_chat(
         else:
             response = plugin_config.responses.general_error
     # 检查是否有图片或视频链接或音频链接，并发送图片或视频或音频或文本消息
-    image_match = re.search(r'https?://[^\s]+?\.(?:png|jpg|jpeg|gif|bmp|webp)', response, re.IGNORECASE)
+    image_match = re.search(r'(?:https?://|file:///)[^\s]+?\.(?:png|jpg|jpeg|gif|bmp|webp)', response, re.IGNORECASE)
     video_match = re.search(r'https?://[^\s]+?\.(?:mp4|avi|mov|mkv)', response, re.IGNORECASE)
     audio_match = re.search(r'https?://[^\s]+?\.(?:mp3|wav|ogg|aac|flac)', response, re.IGNORECASE)
     

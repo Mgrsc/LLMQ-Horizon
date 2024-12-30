@@ -9,7 +9,9 @@ from langchain_groq import ChatGroq
 from langchain_core.language_models import LanguageModelInput
 from langchain_google_genai import ChatGoogleGenerativeAI
 from .tools import load_tools
+from functools import wraps
 from .config import Config
+import asyncio
 import json
 
 plugin_config = Config.load_config()
@@ -33,8 +35,26 @@ class MyOpenAI(ChatOpenAI):
             payload["max_tokens"] = payload.pop("max_completion_tokens")
         return payload
 
-def get_llm(model=None):
-    """根据配置获取适当的 LLM 实例"""
+def async_singleton(cls):
+    _instances = {}
+    _locks = {}  # 为每个类实例添加一个锁
+
+    @wraps(cls)
+    async def wrapper(*args, **kwargs):
+        if cls not in _instances:
+            if cls not in _locks:
+                _locks[cls] = asyncio.Lock()  # 创建一个锁
+            async with _locks[cls]:  # 获取锁
+                if cls not in _instances:
+                    _instances[cls] = await cls(*args, **kwargs)
+        return _instances[cls]
+
+    return wrapper
+
+
+@async_singleton
+async def get_llm(model=None):
+    """异步获取适当的 LLM 实例"""
     model = model.lower() if model else plugin_config.llm.model
     print(f"使用模型: {model}")
 
@@ -73,7 +93,7 @@ def get_llm(model=None):
 class State(TypedDict):
     messages: Annotated[list, add_messages]
 
-def build_graph(config: Config, llm):
+async def build_graph(config: Config, llm):
     """构建并返回对话图"""
     tools = load_tools()
     llm_with_tools = llm.bind_tools(tools)
@@ -88,14 +108,14 @@ def build_graph(config: Config, llm):
         end_on=("human", "tool"),
     )
 
-    def chatbot(state: State):
+    async def chatbot(state: State):
         messages = state["messages"]
         if config.llm.system_prompt:
             messages = [SystemMessage(content=config.llm.system_prompt)] + messages
         trimmed_messages = trimmer.invoke(messages)
-        # print("-" * 50)
-        # print(format_messages_for_print(trimmed_messages))
-        response = llm_with_tools.invoke(trimmed_messages)
+        print("-" * 50)
+        print(format_messages_for_print(trimmed_messages))
+        response = await llm_with_tools.ainvoke(trimmed_messages) 
         # print(f"chatbot: {response}")
         return {"messages": [response]}
 
@@ -113,10 +133,10 @@ def format_messages_for_print(messages: List[Union[SystemMessage, HumanMessage, 
     """格式化 LangChain 消息列表"""
     output = []
     for message in messages:
-        if isinstance(message, SystemMessage):
-            output.append(f"SystemMessage: {message.content}\n")
-            output.append("_" * 50 + "\n")
-        elif isinstance(message, HumanMessage):
+        # if isinstance(message, SystemMessage):
+        #     output.append(f"SystemMessage: {message.content}\n")
+        #     output.append("_" * 50 + "\n")
+        if isinstance(message, HumanMessage):
             output.append(f"HumanMessage: {message.content}\n")
         elif isinstance(message, AIMessage):
             output.append(f"AIMessage: {message.content}\n")
