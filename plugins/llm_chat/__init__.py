@@ -336,18 +336,23 @@ async def handle_chat(
         formatted_output = format_messages_for_print(result["messages"])
         print(formatted_output)
         if not result["messages"]:
+            print("警告: 结果消息列表为空")
             response = "对不起，我现在无法回答。"
         else:
             last_message = result["messages"][-1]
             if isinstance(last_message, AIMessage):
                 if last_message.invalid_tool_calls:
                     if isinstance(last_message.invalid_tool_calls, list) and last_message.invalid_tool_calls:
-                        response = f"工具调用失败: {last_message.invalid_tool_calls[0]['error']}"
+                        error_msg = last_message.invalid_tool_calls[0]['error']
+                        print(f"工具调用错误: {error_msg}")
+                        response = f"工具调用失败: {error_msg}"
                     else:
+                        print("工具调用错误: 未知错误(无错误信息)")
                         response = "工具调用失败，但没有错误信息"
                 elif last_message.content:
                     response = last_message.content.strip()
                 else:
+                    print("警告: AI消息内容为空")
                     response = "对不起，我没有理解您的问题。"
             elif isinstance(last_message, ToolMessage) and last_message.content:
                 response = (
@@ -356,23 +361,27 @@ async def handle_chat(
                     else str(last_message.content)
                 )
             else:
+                print(f"警告: 未知的消息类型或内容为空: {type(last_message)}")
                 response = "对不起，我没有理解您的问题。"
     except Exception as e:
         error_message = str(e)
         print(f"调用 LangGraph 时发生错误: {error_message}")
+        print(f"错误类型: {type(e)}")
+        print(f"完整异常信息: {e}")
         
         if "insufficient tool messages following tool_calls message" in error_message:
+            print("工具调用消息序列不完整错误，重置会话状态")
             async with sessions_lock:
                 if thread_id in sessions:
                     del sessions[thread_id]
             await chat_handler.finish("对话状态异常已重置，请重试")
             return
             
-        # 只处理两种情况：list strip错误和其他所有错误
         if "'list' object has no attribute 'strip'" in error_message:
-            print("max_tokens设置过小，导致生成的工具参数不完整")
+            print("max_tokens 设置过小导致的参数不完整错误")
             response = plugin_config.responses.token_limit_error
         else:
+            print(f"未处理的异常: {error_message}")
             response = plugin_config.responses.general_error
     finally:
         await session.end_processing()
