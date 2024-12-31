@@ -1,7 +1,9 @@
 import requests
 from pyquery import PyQuery as pq
 import datetime
+from langchain_core.tools import tool
 
+@tool(parse_docstring=True)
 def get_github_trending():
     """Fetch the GitHub Trending page and return the content as a Markdown formatted list."""
     try:

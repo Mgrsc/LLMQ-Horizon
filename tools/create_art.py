@@ -323,7 +323,7 @@ class ProviderFactory:
         provider_name = cls._model_to_provider.get(model_name)
         return cls._providers.get(provider_name)
 
-@tool
+@tool(parse_docstring=True)
 def create_art(prompt: str, image_size: str = "square", style: str = "any", model: str = "sdxlx1"):
     """Create artwork based on the requirements and return an image link.
 
@@ -344,7 +344,7 @@ def create_art(prompt: str, image_size: str = "square", style: str = "any", mode
         
     try:
         result = provider.generate_image(model, prompt, size_enum, style)
-        return f"Tool Response: {result}"
+        return result
     except Exception as e:
         return f"生成图片失败: {str(e)}"
 

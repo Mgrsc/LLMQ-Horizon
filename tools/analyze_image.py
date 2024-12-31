@@ -12,7 +12,7 @@ client = OpenAI(
     base_url=img_config.get("new_base_url"),
 )
 
-@tool
+@tool(parse_docstring=True)
 def analyze_image(query: str, image_input: str) -> str:
     """Get and return the content and information in the image according to the query requirements.  It can also analyze the image.
 
@@ -80,6 +80,6 @@ After understanding the image uploaded by the user and their instructions, pleas
             }
         ],
     )
-    return f"tool result: {completion}"
+    return completion
 
 tools = [analyze_image]

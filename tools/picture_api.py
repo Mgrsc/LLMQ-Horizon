@@ -7,7 +7,7 @@ import os
 picture = config.get("picture_api", {})
 api = picture.get("api")
 
-@tool
+@tool(parse_docstring=True)
 def picture_api(select_type: str):
   """Select a suitable image classification request random image API from the variable api_type_list based on the request, store the image on the server, and return the image link.
 

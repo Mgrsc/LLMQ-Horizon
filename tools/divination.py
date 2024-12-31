@@ -171,7 +171,7 @@ def _get_current_time_info():
     return lunar_time, gregorian_time, sizhu_cn, upper_trigram_number, lower_trigram_number, moving_yao_number, shanggua_name, xiagua_name
 
 
-@tool
+@tool(parse_docstring=True)
 def divination(query: str):
     """Plum Blossom Numerology Divination, Fortune Telling, and so on
 

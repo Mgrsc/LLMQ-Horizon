@@ -6,9 +6,10 @@ jina_api_key = config.get('jina', {}).get('api_key', '')
 top_n = config.get('jina', {}).get('top_n', 5)
 min_length = config.get('jina', {}).get('min_length', 10)
 
-@tool
+@tool(parse_docstring=True)
 def jina_fact_checking(query: str):
     """Facts to be queried or confirmed, such as "What is the subscription price for OpenAI's latest model, o1-pro?"
+    
     Args:
         query: The content to be queried (inquired/looked up/searched/checked)
     """

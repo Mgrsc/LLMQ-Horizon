@@ -6,9 +6,10 @@ jina_api_key = config.get('jina', {}).get('api_key', '')
 top_n = config.get('jina', {}).get('top_n', 5)
 min_length = config.get('jina', {}).get('min_length', 10)
 
-@tool
+@tool(parse_docstring=True)
 def jina_search(query: str):
     """Query in the search engine
+    
     Args:
         query: The content to query/search for/look up/inquire about
     """
