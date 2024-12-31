@@ -47,6 +47,31 @@ class Session:
         # 最后访问时间
         self.last_accessed = datetime.now()
         self.graph = None
+        self.lock = asyncio.Lock()  # 添加会话锁
+        self.processing = False  # 添加处理状态标志
+        self.processing_start_time = None  # 处理开始时间
+
+    async def try_acquire_lock(self) -> bool:
+        """尝试获取锁,返回是否成功"""
+        if self.processing:
+            # 检查是否超时(60秒)
+            if self.processing_start_time and \
+               (datetime.now() - self.processing_start_time).seconds > 60:
+                self.processing = False
+                self.processing_start_time = None
+            else:
+                return False
+        return True
+
+    async def start_processing(self):
+        """开始处理"""
+        self.processing = True
+        self.processing_start_time = datetime.now()
+
+    async def end_processing(self):
+        """结束处理"""
+        self.processing = False
+        self.processing_start_time = None
 
 # "group_123456_789012": Session对象1
 sessions: Dict[str, Session] = {}
@@ -54,8 +79,28 @@ sessions: Dict[str, Session] = {}
 # 添加异步锁保护sessions字典
 sessions_lock = asyncio.Lock()
 
+CLEANUP_INTERVAL = 600  # 会话清理间隔(秒) 例:10分钟
+LAST_CLEANUP_TIME = datetime.now()
+
+async def cleanup_sessions():
+    """定期清理长时间未使用(超过 CLEANUP_INTERVAL)的会话"""
+    now = datetime.now()
+    async with sessions_lock:
+        expired_keys = []
+        for k, s in sessions.items():
+            if (now - s.last_accessed).total_seconds() > CLEANUP_INTERVAL:
+                expired_keys.append(k)
+        for k in expired_keys:
+            del sessions[k]
+    return len(expired_keys)
+
 async def get_or_create_session(thread_id: str) -> Session:
-    """异步获取或创建会话"""
+    global LAST_CLEANUP_TIME
+    # 定期清理
+    if (datetime.now() - LAST_CLEANUP_TIME).total_seconds() > CLEANUP_INTERVAL:
+        await cleanup_sessions()
+        LAST_CLEANUP_TIME = datetime.now()
+
     async with sessions_lock:
         if thread_id not in sessions:
             sessions[thread_id] = Session(thread_id)
@@ -255,11 +300,29 @@ async def handle_chat(
         thread_id = f"private_{event.user_id}"
     print(f"Current thread: {thread_id}")
     session = await get_or_create_session(thread_id)
-    
-    # 如果当前会话没有图，则创建一个
-    if session.graph is None:
-        session.graph = graph_builder.compile(checkpointer=session.memory)
+
+    # 如果锁已被占用,说明已有请求在处理,丢弃本次请求
+    if session.lock.locked():
+        await chat_handler.finish(Message(plugin_config.responses.session_busy_message))
+        return
+
+    # 显式获取锁,防止后续请求排队，获取失败则丢弃请求
+    locked = await session.lock.acquire()
+    if not locked:
+        await chat_handler.finish(Message(plugin_config.responses.session_busy_message))
+        return
+
     try:
+        # 二次判断processing，获取锁之前检查当前会话是否在处理
+        if session.processing:
+            await chat_handler.finish(Message(plugin_config.responses.session_busy_message))
+            return
+
+        await session.start_processing()
+        # 如果当前会话没有图，则创建一个
+        if session.graph is None:
+            session.graph = graph_builder.compile(checkpointer=session.memory)
+
         # 在发送给 LangGraph 的消息内容中添加用户名
         if plugin_config.plugin.enable_username and user_name:
             message_content = f"{user_name}: {full_content}"
@@ -298,16 +361,23 @@ async def handle_chat(
         error_message = str(e)
         print(f"调用 LangGraph 时发生错误: {error_message}")
         
-        async with sessions_lock:
-            if thread_id in sessions:
-                del sessions[thread_id]
-        
+        if "insufficient tool messages following tool_calls message" in error_message:
+            async with sessions_lock:
+                if thread_id in sessions:
+                    del sessions[thread_id]
+            await chat_handler.finish("对话状态异常已重置，请重试")
+            return
+            
         # 只处理两种情况：list strip错误和其他所有错误
         if "'list' object has no attribute 'strip'" in error_message:
             print("max_tokens设置过小，导致生成的工具参数不完整")
             response = plugin_config.responses.token_limit_error
         else:
             response = plugin_config.responses.general_error
+    finally:
+        await session.end_processing()
+        session.lock.release()
+
     # 检查是否有图片或视频链接或音频链接，并发送图片或视频或音频或文本消息
     image_match = re.search(r'(?:https?://|file:///)[^\s]+?\.(?:png|jpg|jpeg|gif|bmp|webp)', response, re.IGNORECASE)
     video_match = re.search(r'https?://[^\s]+?\.(?:mp4|avi|mov|mkv)', response, re.IGNORECASE)

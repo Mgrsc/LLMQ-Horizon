@@ -115,10 +115,10 @@ async def build_graph(config: Config, llm):
         trimmed_messages = trimmer.invoke(messages)
         if not trimmed_messages:
             return {"messages": []}
-        # print("-" * 50)
-        # print(format_messages_for_print(trimmed_messages))
+        print("-" * 50)
+        print(format_messages_for_print(trimmed_messages))
         response = await llm_with_tools.ainvoke(trimmed_messages) 
-        # print(f"chatbot: {response}")
+        print(f"chatbot: {response}")
         return {"messages": [response]}
 
     graph_builder = StateGraph(State)
