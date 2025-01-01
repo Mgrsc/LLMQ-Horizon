@@ -34,6 +34,7 @@ class PluginConfig(BaseModel):
     chunk: ChunkConfig = ChunkConfig()
     command_start: str = "?"
     superusers: str = ""
+    media_include_text: bool = True
 
 class ResponseConfig(BaseModel):
     """回复消息配置"""
@@ -83,6 +84,7 @@ class Config(BaseModel):
                 enable_username=toml_config["plugin_settings"].get("enable_username", False),
                 command_start=toml_config["plugin_settings"].get("command_start", "?"),
                 superusers=toml_config["plugin_settings"].get("superusers", ""),
+                media_include_text=toml_config["plugin_settings"].get("media_include_text", True),
                 chunk=ChunkConfig(
                     enable=toml_config.get("chunk", {}).get("enable", False),
                     words=toml_config.get("chunk", {}).get("words", ["||"]),

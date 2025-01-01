@@ -100,7 +100,7 @@ async def build_graph(config: Config, llm):
         print("-" * 50)
         print(format_messages_for_print(trimmed_messages))
         response = await llm_with_tools.ainvoke(trimmed_messages) 
-        print(f"chatbot: {response}")
+        # print(f"chatbot: {response}")
         return {"messages": [response]}
 
     graph_builder = StateGraph(State)
@@ -113,15 +113,17 @@ async def build_graph(config: Config, llm):
 
     return graph_builder
 
+
+
 def format_messages_for_print(messages: List[Union[SystemMessage, HumanMessage, AIMessage, ToolMessage]]) -> str:
     """格式化 LangChain 消息列表"""
     output = []
     for message in messages:
-        # if isinstance(message, SystemMessage):
-        #     output.append(f"SystemMessage: {message.content}\n")
-        #     output.append("_" * 50 + "\n")
+        if isinstance(message, SystemMessage):
+            output.append(f"SystemMessage: {message.content}\n")
+            output.append("_" * 50 + "\n")
         if isinstance(message, HumanMessage):
-            output.append(f"HumanMessage: {message.content}\n")
+            output.append("\n" + "_" * 50 + "\nHumanMessage: \n" +  f"{message.content}\n\n")
         elif isinstance(message, AIMessage):
             output.append(f"AIMessage: {message.content}\n")
             if message.tool_calls:
@@ -131,7 +133,7 @@ def format_messages_for_print(messages: List[Union[SystemMessage, HumanMessage, 
                         args = json.loads(tool_call['args'])
                     except (json.JSONDecodeError, TypeError):
                         args = tool_call['args']
-                    output.append(f"  Tool Arguments: {args}\n")
+                    output.append(f"  Tool Arguments: {args}\n\n")
         elif isinstance(message, ToolMessage):
-            output.append(f"ToolMessage: Tool Name: {message.name}  Tool content: {message.content}\n")
+            output.append(f"ToolMessage: \n  Tool Name: {message.name}\n  Tool content: {message.content}\n\n")
     return "".join(output)
