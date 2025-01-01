@@ -110,21 +110,14 @@ async def get_or_create_session(thread_id: str) -> Session:
 
 
 # 初始化模型和对话图
-async def _initialize_resources():
-    llm = await get_llm()
-    graph_builder = await build_graph(plugin_config, llm)
-    return llm, graph_builder
+llm = None
+graph_builder = None
 
-llm, graph_builder = asyncio.run(_initialize_resources())
-
-
-
-
-
-
-
-
-
+async def initialize_resources():
+    global llm, graph_builder
+    if llm is None:
+        llm = await get_llm()
+        graph_builder = await build_graph(plugin_config, llm)
 
 def _remove_trigger_words(text: str, message: Message) -> str:
     """移除命令前缀(包括@和CQ码)，保留关键词"""
@@ -227,6 +220,11 @@ async def handle_chat(
     # 提取纯文本
     plain_text: str = EventPlainText(),
 ):
+    global llm, graph_builder
+    # 确保 llm 已初始化
+    if llm is None:
+        await initialize_resources()
+    
     # 检查群聊/私聊开关，判断消息对象是否是群聊/私聊的实例
     if (isinstance(event, GroupMessageEvent) and not plugin_config.plugin.enable_group) or \
        (not isinstance(event, GroupMessageEvent) and not plugin_config.plugin.enable_private):
@@ -481,14 +479,19 @@ async def handle_chat_command(args: Message = CommandArg(), event: Event = None)
         # 处理模型切换
         if len(command_args) < 2:
             try:
-                current_model = llm.model_name
-            except AttributeError:
-                current_model = llm.model
-            await chat_command.finish(f"当前模型: {current_model}")
+                current_model = llm.model_name if hasattr(llm, 'model_name') else llm.model
+                await chat_command.finish(f"当前模型: {current_model}")
+            except Exception as e:
+                await chat_command.finish(f"获取当前模型失败: {str(e)}")
+                
         model_name = command_args[1]
         try:
-            llm = await get_llm(model_name)
-            graph_builder = await build_graph(plugin_config, llm)
+            new_llm = await get_llm(model_name)
+            new_graph_builder = await build_graph(plugin_config, new_llm)
+            # 成功创建新实例后才更新全局变量
+            llm = new_llm
+            graph_builder = new_graph_builder
+            # 清理所有会话
             async with sessions_lock:
                 sessions.clear()
             await chat_command.finish(f"已切换到模型: {model_name}")
@@ -496,7 +499,7 @@ async def handle_chat_command(args: Message = CommandArg(), event: Event = None)
             raise
         except Exception as e:
             await chat_command.finish(f"切换模型失败: {str(e)}")
-            
+    
     elif command == "clear":
         # 处理清理历史会话
         async with sessions_lock:

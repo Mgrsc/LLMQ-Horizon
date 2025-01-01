@@ -35,24 +35,6 @@ class MyOpenAI(ChatOpenAI):
             payload["max_tokens"] = payload.pop("max_completion_tokens")
         return payload
 
-def async_singleton(cls):
-    _instances = {}
-    _locks = {}
-
-    @wraps(cls)
-    async def wrapper(*args, **kwargs):
-        if cls not in _instances:
-            if cls not in _locks:
-                _locks[cls] = asyncio.Lock()  # 创建一个锁
-            async with _locks[cls]:  # 获取锁
-                if cls not in _instances:
-                    _instances[cls] = await cls(*args, **kwargs)
-        return _instances[cls]
-
-    return wrapper
-
-
-@async_singleton
 async def get_llm(model=None):
     """异步获取适当的 LLM 实例"""
     model = model.lower() if model else plugin_config.llm.model
