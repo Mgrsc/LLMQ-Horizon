@@ -164,10 +164,6 @@ async def build_message_content(
     # 获取纯文本消息
     full_content = await remove_trigger_words(message, event)
 
-    # 如果纯文本为空，则使用随机回复
-    if not full_content.strip():
-        full_content = choice(plugin_config.responses.empty_message_replies)
-
     # 添加主消息的媒体URL
     for media_type, urls in media_urls["main"].items():
         if urls:

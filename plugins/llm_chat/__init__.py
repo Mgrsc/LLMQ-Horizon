@@ -23,12 +23,12 @@ from .utils import (
     send_in_chunks,
     get_user_name,
     build_message_content,
+    remove_trigger_words,
 )
 import asyncio
 import os
 import re
-
-
+from .config import plugin_config
 
 
 __plugin_meta__ = PluginMetadata(
@@ -37,8 +37,6 @@ __plugin_meta__ = PluginMetadata(
     usage="@机器人 或关键词，或使用命令前缀触发对话",
     config=Config,
 )
-
-plugin_config = Config.load_config()
 
 os.environ["OPENAI_API_KEY"] = plugin_config.llm.api_key
 os.environ["OPENAI_BASE_URL"] = plugin_config.llm.base_url
@@ -57,12 +55,30 @@ class Session:
         self.processing = False  # 添加处理状态标志
         self.processing_start_time = None  # 处理开始时间
 
-    async def try_acquire_lock(self) -> bool:
-        """尝试获取锁,返回是否成功"""
+    @property
+    def is_expired(self) -> bool:
+        """判断会话是否过期"""
+        now = datetime.now()
+        # 超过CLEANUP_INTERVAL秒未访问则过期
+        return (now - self.last_accessed).total_seconds() > CLEANUP_INTERVAL
+        
+    @property
+    def is_processing_timeout(self) -> bool:
+        """判断处理是否超时"""
+        if not self.processing or not self.processing_start_time:
+            return False
+        now = datetime.now()
+        # 处理时间超过60秒判定为超时
+        return (now - self.processing_start_time).total_seconds() > 60
+        
+    def refresh(self):
+        """刷新最后访问时间"""
+        self.last_accessed = datetime.now()
+
+    def try_acquire_lock(self) -> bool:
+        """尝试获取锁"""
         if self.processing:
-            # 检查是否超时(60秒)
-            if self.processing_start_time and \
-               (datetime.now() - self.processing_start_time).seconds > 60:
+            if self.is_processing_timeout:
                 self.processing = False
                 self.processing_start_time = None
             else:
@@ -71,13 +87,15 @@ class Session:
 
     async def start_processing(self):
         """开始处理"""
-        self.processing = True
+        self.processing = True 
         self.processing_start_time = datetime.now()
+        self.refresh()
 
     async def end_processing(self):
         """结束处理"""
         self.processing = False
         self.processing_start_time = None
+        self.refresh()
 
 # "group_123456_789012": Session对象1
 sessions: Dict[str, Session] = {}
@@ -89,35 +107,31 @@ CLEANUP_INTERVAL = 600  # 会话清理间隔(秒) 例:10分钟
 LAST_CLEANUP_TIME = datetime.now()
 
 async def cleanup_sessions():
-    """定期清理长时间未使用(超过 CLEANUP_INTERVAL)的会话"""
-    now = datetime.now()
+    """清理过期会话"""
     async with sessions_lock:
-        expired_keys = []
-        for k, s in sessions.items():
-            if (now - s.last_accessed).total_seconds() > CLEANUP_INTERVAL:
-                expired_keys.append(k)
+        expired_keys = [k for k, s in sessions.items() if s.is_expired]
         for k in expired_keys:
             del sessions[k]
     return len(expired_keys)
 
-
 async def get_or_create_session(thread_id: str) -> Session:
-    """获取或创建会话"""
+    """获取或创建会话,同时处理清理"""
     global LAST_CLEANUP_TIME
-    # 定期清理
-    if (datetime.now() - LAST_CLEANUP_TIME).total_seconds() > CLEANUP_INTERVAL:
-        await cleanup_sessions()
-        LAST_CLEANUP_TIME = datetime.now()
+    
+    # 每隔CLEANUP_INTERVAL秒检查一次过期会话
+    now = datetime.now()
+    if (now - LAST_CLEANUP_TIME).total_seconds() > CLEANUP_INTERVAL:
+        cleaned = await cleanup_sessions()
+        if cleaned > 0:
+            print(f"已清理 {cleaned} 个过期会话")
+        LAST_CLEANUP_TIME = now
 
-    # 获取锁,保证线程安全
     async with sessions_lock:
         if thread_id not in sessions:
-            # 构建字典{""group_123456_789012": Session对象1}
             sessions[thread_id] = Session(thread_id)
-        # 获取Session对象
         session = sessions[thread_id]
-        session.last_accessed = datetime.now()
-    return session
+        session.refresh()
+        return session
 
 
 # 初始化模型和对话图
@@ -216,6 +230,12 @@ async def handle_chat(
     plain_text: str = EventPlainText(),
 ):
     global llm, graph_builder
+    
+    cleaned_message = await remove_trigger_words(message, event)
+    if not cleaned_message or cleaned_message.isspace():
+        await chat_handler.finish(Message(choice(plugin_config.responses.empty_message_replies)))
+        return
+        
     # 确保 llm 已初始化
     if llm is None:
         await initialize_resources()
@@ -252,23 +272,20 @@ async def handle_chat(
 
     # ---------- 判断当前会话ID对应的会话是否在处理中，如无则调用langgraph START ----------
     
-    # 如果锁已被占用,说明已有请求在处理,丢弃本次请求
-    if session.lock.locked():
-        await chat_handler.finish(Message(plugin_config.responses.session_busy_message))
-        return
-
-    # 显式获取锁,防止后续请求排队，获取失败则丢弃请求
-    locked = await session.lock.acquire()
-    if not locked:
-        await chat_handler.finish(Message(plugin_config.responses.session_busy_message))
-        return
-
+    # 处理会话锁
     try:
-        # 二次判断processing，获取锁之前检查当前会话是否在处理
-        if session.processing:
+        if not await asyncio.wait_for(session.lock.acquire(), timeout=1.0):
             await chat_handler.finish(Message(plugin_config.responses.session_busy_message))
             return
-
+    except asyncio.TimeoutError:
+        await chat_handler.finish(Message(plugin_config.responses.session_busy_message)) 
+        return
+        
+    try:
+        if not session.try_acquire_lock():
+            await chat_handler.finish(Message(plugin_config.responses.session_busy_message))
+            return
+            
         await session.start_processing()
         # 如果当前会话没有图，则创建一个
         if session.graph is None:
@@ -373,6 +390,17 @@ async def handle_chat_command(args: Message = CommandArg(), event: Event = None)
     global llm, graph_builder, sessions, plugin_config
 
     command_args = args.extract_plain_text().strip().split(maxsplit=1)
+    if not command_args:
+        await chat_command.finish(
+            """请输入有效的命令：
+            'chat model <模型名字>' 切换模型 
+            'chat clear' 清理会话
+            'chat group <true/false>' 切换群聊会话隔离
+            'chat down' 关闭对话功能
+            'chat up' 开启对话功能
+            'chat chunk <true/false>' 切换分开发送功能"""
+            )
+    command = command_args[0].lower()
     if not command_args:
         await chat_command.finish(
             """请输入有效的命令：

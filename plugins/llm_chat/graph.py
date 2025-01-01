@@ -11,10 +11,9 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from .tools import load_tools
 from functools import wraps
 from .config import Config
+from .config import plugin_config
 import asyncio
 import json
-
-plugin_config = Config.load_config()
 
 groq_models = {
     "llama3-groq-70b-8192-tool-use-preview",

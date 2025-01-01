@@ -106,4 +106,6 @@ class Config(BaseModel):
         except Exception as e:
             raise RuntimeError(f"Failed to load config.toml: {str(e)}")
 
+plugin_config = Config.load_config()
+
 
