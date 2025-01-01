@@ -42,6 +42,7 @@ class ResponseConfig(BaseModel):
     general_error: str = "卧槽，报错了，尝试自行修复中，聊聊别的吧！"
     disabled_message: str = "Bot已禁用"
     session_busy_message: str = "正在处理其他会话，稍后再试"
+    assistant_empty_reply: str = "API空回复"
 
 class Config(BaseModel):
     llm: LLMConfig
@@ -95,6 +96,7 @@ class Config(BaseModel):
                 token_limit_error=toml_config["responses"].get("token_limit_error", ResponseConfig().token_limit_error),
                 general_error=toml_config["responses"].get("general_error", ResponseConfig().general_error),
                 disabled_message=toml_config["responses"].get("disabled_message", "Bot已禁用"),
+                assistant_empty_reply=toml_config["responses"].get("assistant_empty_reply", "API空回复"),
                 session_busy_message=toml_config["responses"].get("session_busy_message", "正在处理其他会话，稍后再试")
             )
             
