@@ -2,7 +2,7 @@ FROM ghcr.io/astral-sh/uv:bookworm-slim
 
 # 安装 tini 作为初始化系统
 RUN apt-get update \
-    && apt-get install -y tini \
+    && apt-get install -y tini ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 LABEL maintainer="mgrsc <mail@occult.ac.cn>"

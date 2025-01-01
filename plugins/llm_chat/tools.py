@@ -11,7 +11,8 @@ def _get_builtin_tools(config: dict) -> Dict[str, BaseTool]:
     """根据配置返回内置工具的初始化方法字典。"""
     return {
         "tavily_search": lambda: TavilySearchResults(
-            max_results=config.get("tavily", {}).get("max_results", 2)
+            max_results=config.get("tavily", {}).get("max_results", 2),
+            # verify_ssl=False
         )
     }
 
