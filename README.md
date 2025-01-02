@@ -179,6 +179,7 @@ user_id = 6
 
 - 其他问题请加QQ群讨论
 ![qrcode](qrcode.jpg)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FMgrsc%2FLLMQ-Horizon.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2FMgrsc%2FLLMQ-Horizon?ref=badge_shield)
 
 </details>
 
@@ -193,3 +194,6 @@ user_id = 6
 ## 📄 许可证
 
 MIT License
+
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FMgrsc%2FLLMQ-Horizon.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2FMgrsc%2FLLMQ-Horizon?ref=badge_large)
