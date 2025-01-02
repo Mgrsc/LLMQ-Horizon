@@ -97,9 +97,10 @@ async def build_graph(config: Config, llm):
         if not trimmed_messages:
             return {"messages": []}
         print("-" * 50)
-        print(format_messages_for_print(trimmed_messages))
+        truncated_messages = trimmed_messages[-2:]
+        print(format_messages_for_print(truncated_messages))
         response = await llm_with_tools.ainvoke(trimmed_messages) 
-        # print(f"chatbot: {response}")
+        print(f"chatbot: {response}")
         return {"messages": [response]}
 
     graph_builder = StateGraph(State)
@@ -118,9 +119,9 @@ def format_messages_for_print(messages: List[Union[SystemMessage, HumanMessage, 
     """格式化 LangChain 消息列表"""
     output = []
     for message in messages:
-        if isinstance(message, SystemMessage):
-            output.append(f"SystemMessage: {message.content}\n")
-            output.append("_" * 50 + "\n")
+        # if isinstance(message, SystemMessage):
+        #     output.append(f"SystemMessage: {message.content}\n")
+        #     output.append("_" * 50 + "\n")
         if isinstance(message, HumanMessage):
             output.append("\n" + "_" * 50 + "\nHumanMessage: \n" +  f"{message.content}\n\n")
         elif isinstance(message, AIMessage):

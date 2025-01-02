@@ -296,8 +296,8 @@ async def handle_chat(
             {"messages": [HumanMessage(content=message_content)]},
             {"configurable": {"thread_id": thread_id}},
         )
-        
-        print(format_messages_for_print(result["messages"]))
+        truncated_messages = result["messages"][-2:]
+        print(format_messages_for_print(truncated_messages))
         
         response = await _process_llm_response(result)
     except Exception as e:
@@ -329,7 +329,6 @@ async def handle_chat(
     async def process_media_message(response: str, media_type: str, url: str) -> Message:
         """处理包含媒体的消息"""
         media_info = MEDIA_PATTERNS[media_type]
-        print(plugin_config.plugin.media_include_text)
         if plugin_config.plugin.media_include_text:
             # 清理markdown链接语法
             message_content = re.sub(r'!?\[.*?\]\((.*?)\)', r'\1', response)
