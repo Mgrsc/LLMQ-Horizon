@@ -75,7 +75,7 @@ def send_email(email: str, subject: str = "", content: str = "", optimize: bool 
         subject (str): Email subject (optional if using draft_desc)
         content (str): Email body content (optional if using draft_desc)
         optimize (bool): Whether to optimize the content using LLM, defaults to True
-        draft_desc (str): Description and reference content for AI-drafted emails (e.g. "写一封邀请朋友周末聚餐的邮件，语气要温和", "写一封邀请朋友周末聚餐的邮件，语气要温和，参考内容：xxxxx")
+        draft_desc (str): Description and reference content for AI-drafted emails (e.g. "写一封邀请朋友周末聚餐的邮件，语气要温和，500字左右", "写一封邀请朋友周末聚餐的邮件，语气要温和，参考内容：xxxxx")
     """
     try:
         if draft_desc:
